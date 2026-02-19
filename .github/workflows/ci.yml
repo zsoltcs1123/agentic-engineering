@@ -1,0 +1,54 @@
+name: CI
+
+# DISABLED BY DEFAULT - See README for instructions on how to enable
+# This workflow is disabled to save GitHub Actions costs
+# To enable: Uncomment the triggers below and remove this comment block
+on:
+  workflow_dispatch: # Manual trigger only - workflows disabled by default
+  # push:
+  #   branches: [main, master]
+  # pull_request:
+  #   branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.14"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Install package
+        run: uv pip install -e .
+
+      - name: Run Ruff
+        run: uv run ruff check .
+
+      - name: Run Ruff format check
+        run: uv run ruff format --check .
+
+      - name: Run Mypy
+        run: uv run mypy .
+
+      - name: Run tests
+        run: uv run pytest --cov=src --cov=packages --cov-report=xml --cov-report=term
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        if: matrix.python-version == '3.14'
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false

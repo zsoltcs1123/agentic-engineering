@@ -1,0 +1,205 @@
+name: Dependency Updates
+
+# DISABLED BY DEFAULT - See README for instructions on how to enable
+# This workflow is disabled to save GitHub Actions costs
+# To enable: Uncomment the schedule below and remove this comment block
+on:
+  workflow_dispatch: # Manual trigger only - workflows disabled by default
+  # schedule:
+  #   # Run every Monday at 9 AM UTC
+  #   - cron: '0 9 * * 1'
+
+jobs:
+  check-updates:
+    name: Check for Dependency Updates
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Check for updates
+        id: check-updates
+        run: |
+          # Backup current lock file
+          cp uv.lock uv.lock.backup
+
+          # Try to update dependencies (respects version constraints)
+          uv lock --upgrade
+
+          # Check if lock file changed
+          if diff -q uv.lock uv.lock.backup > /dev/null; then
+            echo "has_updates=false" >> $GITHUB_OUTPUT
+            echo "has_minor_patch=false" >> $GITHUB_OUTPUT
+            echo "No dependency updates available"
+            exit 0
+          fi
+
+          echo "has_updates=true" >> $GITHUB_OUTPUT
+
+          # Analyze updates
+          python3 -c "
+          import json
+          import re
+
+          # Read lock files
+          with open('uv.lock.backup', 'r') as f:
+              old_lock = json.load(f)
+          with open('uv.lock', 'r') as f:
+              new_lock = json.load(f)
+
+          old_versions = {p['name']: p.get('version', '') for p in old_lock.get('package', [])}
+          new_versions = {p['name']: p.get('version', '') for p in new_lock.get('package', [])}
+
+          def parse_version(ver):
+              if not ver:
+                  return (0, 0, 0)
+              match = re.match(r'(\d+)\.(\d+)\.(\d+)', ver)
+              if match:
+                  return tuple(int(x) for x in match.groups())
+              return (0, 0, 0)
+
+          major_updates = []
+          minor_patch_updates = []
+
+          all_packages = set(old_versions.keys()) | set(new_versions.keys())
+          for name in sorted(all_packages):
+              old_ver = old_versions.get(name, '')
+              new_ver = new_versions.get(name, '')
+
+              if old_ver != new_ver and old_ver and new_ver:
+                  old_parts = parse_version(old_ver)
+                  new_parts = parse_version(new_ver)
+
+                  if old_parts[0] != new_parts[0]:
+                      major_updates.append({'name': name, 'old': old_ver, 'new': new_ver})
+                  else:
+                      minor_patch_updates.append({'name': name, 'old': old_ver, 'new': new_ver})
+
+          # Restore original if major updates found
+          if major_updates:
+              import shutil
+              shutil.copy('uv.lock.backup', 'uv.lock')
+
+          # Save analysis
+          analysis = {
+              'major': major_updates,
+              'minor_patch': minor_patch_updates,
+              'has_minor_patch': len(minor_patch_updates) > 0
+          }
+
+          with open('update-analysis.json', 'w') as f:
+              json.dump(analysis, f, indent=2)
+
+          print(f'Found {len(major_updates)} major and {len(minor_patch_updates)} minor/patch updates')
+          "
+
+          # Generate PR description
+          python3 -c "
+          import json
+          from datetime import datetime
+
+          with open('update-analysis.json', 'r') as f:
+              analysis = json.load(f)
+
+          with open('update-summary.md', 'w') as f:
+              f.write('# Dependency Updates\n\n')
+              f.write(f'Automated dependency update check - {datetime.now().strftime(\"%Y-%m-%d\")}\n\n')
+
+              if analysis['major']:
+                  f.write('## ⚠️ Major Version Updates Available (Not Applied)\n\n')
+                  f.write('The following packages have major version updates available but were **not automatically updated**.\n')
+                  f.write('Please review and update manually if desired.\n\n')
+                  for pkg in analysis['major']:
+                      f.write(f\"- **{pkg['name']}**: \`{pkg['old']}\` → \`{pkg['new']}\` ⚠️ **MAJOR UPDATE**\n\")
+                  f.write('\n---\n\n')
+
+              if analysis['minor_patch']:
+                  f.write('## ✅ Minor/Patch Updates Applied\n\n')
+                  f.write('The following packages were updated automatically:\n\n')
+                  for pkg in analysis['minor_patch']:
+                      f.write(f\"- **{pkg['name']}**: \`{pkg['old']}\` → \`{pkg['new']}\`\n\")
+                  f.write('\n')
+              else:
+                  f.write('## No Minor/Patch Updates Available\n\n')
+
+              if analysis['major']:
+                  f.write('---\n\n')
+                  f.write('**Note**: This PR only includes minor and patch updates. Major version updates are listed above for manual review.\n')
+          "
+
+          # Set outputs
+          HAS_MINOR_PATCH=$(python3 -c "import json; print('true' if json.load(open('update-analysis.json'))['has_minor_patch'] else 'false')")
+          echo "has_minor_patch=$HAS_MINOR_PATCH" >> $GITHUB_OUTPUT
+
+          cat update-summary.md
+
+      - name: Create Pull Request
+        if: steps.check-updates.outputs.has_updates == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Configure git
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+          # GitHub CLI is authenticated via GH_TOKEN env var automatically
+
+          # Create branch
+          BRANCH_NAME="deps/update-$(date +%Y%m%d)"
+          git checkout -b "$BRANCH_NAME"
+
+          # Only commit if there are minor/patch updates
+          if [ "${{ steps.check-updates.outputs.has_minor_patch }}" == "true" ]; then
+            git add uv.lock
+            git commit -m "chore: update dependencies (minor/patch only)"
+            git push origin "$BRANCH_NAME" || echo "Branch may already exist"
+          else
+            # Create empty commit to allow PR creation
+            git commit --allow-empty -m "chore: dependency update check (major updates available)"
+            git push origin "$BRANCH_NAME" || echo "Branch may already exist"
+          fi
+
+          # Create or update PR using GitHub API (no gh CLI needed)
+          PR_TITLE="chore: dependency updates $(date +%Y-%m-%d)"
+          PR_BODY=$(cat update-summary.md | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+
+          # Check if PR already exists
+          EXISTING_PR=$(curl -s -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls?head=${{ github.repository_owner }}:$BRANCH_NAME&state=open" | \
+            python3 -c "import sys, json; prs=json.load(sys.stdin); print(prs[0]['number'] if prs else '')")
+
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #$EXISTING_PR already exists, updating..."
+            curl -X PATCH \
+              -H "Authorization: token $GH_TOKEN" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/${{ github.repository }}/pulls/$EXISTING_PR" \
+              -d "{\"body\": \"$PR_BODY\"}" || true
+          else
+            # Create new PR
+            curl -X POST \
+              -H "Authorization: token $GH_TOKEN" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/${{ github.repository }}/pulls" \
+              -d "{\"title\": \"$PR_TITLE\", \"body\": \"$PR_BODY\", \"head\": \"$BRANCH_NAME\", \"base\": \"main\"}" || echo "Failed to create PR"
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f uv.lock.backup update-analysis.json update-summary.md

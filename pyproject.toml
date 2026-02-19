@@ -1,0 +1,61 @@
+[project]
+name = "agentic-engineering"
+version = "0.1.0"
+description = "Dev repo for agentic engineering systems"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "gateflow",
+]
+
+[tool.uv.sources]
+gateflow = { workspace = true }
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.1",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.14.6",
+    "mypy>=1.18.2",
+    "commitizen>=4.10.0",
+    "pre-commit>=3.6.0",
+]
+
+
+[tool.coverage.run]
+source = ["packages"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/.*/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.1.0"
+version_files = [
+    "packages/gateflow/pyproject.toml:version",
+    "packages/gateflow/src/gateflow/__init__.py:__version__",
+]
+update_changelog_on_bump = true
+changelog_file = "CHANGELOG.md"
+changelog_incremental = true
+major_version_zero = true
+bump_message = "bump: version $current_version → $new_version"
+tag_format = "v$version"
+annotated_tag = false
