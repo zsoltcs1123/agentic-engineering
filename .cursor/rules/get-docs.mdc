@@ -1,5 +1,6 @@
 ---
-alwaysApply: true
+description: get-docs rule from .agents/rules/
+alwaysApply: false
 ---
 
 # Getting Documentation

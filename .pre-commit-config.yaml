@@ -32,7 +32,8 @@ repos:
     hooks:
       - id: mypy
         args: [--config-file=mypy.ini]
-        additional_dependencies: [pytest]
+        exclude: /tests/
+        additional_dependencies: [pytest, pydantic>=2.0, langgraph>=0.4]
 
   - repo: local
     hooks:

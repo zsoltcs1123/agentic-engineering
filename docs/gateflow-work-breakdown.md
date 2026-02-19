@@ -45,6 +45,13 @@ Define the core data structures that flow through the graph: the state TypedDict
 - Pydantic models enforce their constraints (verdict literals, confidence bounds)
 - All types are exported from `gateflow` package root
 
+**Verification:**
+
+- Instantiate `WorkflowState` with all required fields, use it as a LangGraph state annotation — no errors
+- Create `GateDecision` with `verdict="MAYBE"` — Pydantic raises `ValidationError`
+- Create `NodeOutput` with `confidence=1.5` — rejected; `confidence=0.75` — accepted
+- Create `EngineResult` with only `output` provided — defaults populate (`tool_calls=[]`, `duration_s=0.0`)
+
 **Depends on:** None
 
 ---
@@ -65,6 +72,12 @@ Create the protocol class that all execution engines must implement. This is the
 - `ExecutionEngine` is a `typing.Protocol` with a single `run` method returning `EngineResult`
 - A class implementing the method is recognized as conforming at runtime
 - mypy passes on a conforming implementation
+
+**Verification:**
+
+- Define a class with `async def run(...)` matching the signature — `isinstance` check with `runtime_checkable` returns `True`
+- Define a class missing the `run` method — `isinstance` check returns `False`
+- Run `mypy` on a file with a conforming and a non-conforming class — conforming passes, non-conforming produces a type error
 
 **Depends on:** 1
 
@@ -88,6 +101,12 @@ Build the simplest engine: a direct Anthropic API call with no agent tools. Used
 - Prompt is sent as a user message, response text lands in `EngineResult.output`
 - Token usage from API response is captured in `EngineResult.token_usage`
 - API errors raise descriptive exceptions (not raw httpx errors)
+
+**Verification:**
+
+- Mock Anthropic client returning a valid response — `EngineResult.output` contains the response text and `token_usage` matches API payload
+- Mock Anthropic client raising `RateLimitError` — engine raises a descriptive error, not a raw httpx exception
+- Call `run()` with an empty prompt — engine sends the request and returns whatever the API returns (no client-side rejection)
 
 **Depends on:** 2
 
@@ -113,6 +132,12 @@ Build the `DomainPack` class that reads a domain directory (domain.json, prompts
 - `get_engine()` returns override engine for a step if configured, default otherwise
 - `get_steps()` returns the ordered step list from config
 
+**Verification:**
+
+- Point `DomainPack.load()` at a directory missing `domain.json` — raises clear error naming the missing file
+- Load a valid pack, call `build_prompt("plan")` where plan has two rules configured — returned string contains base prompt text followed by both rule texts
+- Call `get_engine("execute")` when execute has an override — returns the override; call `get_engine("document")` with no override — returns the default
+
 **Depends on:** 2
 
 ---
@@ -135,6 +160,12 @@ Implement `build_graph()` that reads the step list from a DomainPack and constru
 - Gate steps route to next step on PASS and to END on ISSUES
 - Non-gate steps have unconditional edges to the next step
 - Graph compiles without errors for a valid domain config
+
+**Verification:**
+
+- Build graph from a 3-step domain (plan, execute, review where review is a gate) — compiled graph has 3 nodes and review has conditional edges (PASS to next, ISSUES to END)
+- Build graph from a 1-step domain (single non-gate step) — graph has 1 node with an edge to END
+- Build graph where two consecutive steps are gates — both have conditional edges wired correctly
 
 **Depends on:** 1, 4
 
@@ -159,6 +190,13 @@ Build the node factory that creates the async function each graph node executes:
 - Gate nodes parse output into GateDecision and the verdict is available for `gate_check`
 - Trace list accumulates an entry per executed step
 
+**Verification:**
+
+- Run a node with a mock engine — verify the prompt passed to the engine contains both the base prompt text and injected state fields (`task_description`, `plan`)
+- Run a gate node where engine returns valid `GateDecision` JSON with `verdict: "PASS"` — state contains parsed decision and `gate_check` returns `"pass"`
+- Run a gate node where engine returns `verdict: "ISSUES"` with 2 issues — state stores the issues list and `gate_check` returns `"issues"`
+- Execute 3 nodes sequentially — `state["trace"]` has 3 entries in order
+
 **Depends on:** 3, 5
 
 ---
@@ -179,6 +217,12 @@ Configure LangGraph's built-in async SQLite checkpointer so workflow state persi
 - Workflow state survives process restart — resuming a thread ID continues from the last completed step
 - Checkpoint database is created at the specified path
 - `build_graph()` accepts and uses the checkpointer
+
+**Verification:**
+
+- Run graph to completion — checkpoint DB file exists at the specified path and is non-empty
+- Run graph, interrupt after step 2 of 4, resume with same thread ID — execution continues from step 3, steps 1-2 are not re-executed
+- Resume with a non-existent thread ID — graph starts from the beginning
 
 **Depends on:** 5
 
@@ -203,6 +247,12 @@ Build the subprocess-based engine that invokes `cursor agent chat` with JSON out
 - `--force` flag is added only when permission_mode is `acceptEdits`
 - Non-zero exit codes and malformed JSON produce descriptive errors
 
+**Verification:**
+
+- Mock subprocess returning valid JSON on stdout — `EngineResult.output` matches the extracted text
+- Call with `permission_mode="acceptEdits"` — subprocess args include `--force`; call with `permission_mode="default"` — args do not include `--force`
+- Mock subprocess returning exit code 1 — engine raises descriptive error containing stderr content
+
 **Depends on:** 2
 
 ---
@@ -225,6 +275,12 @@ Build the REST-based engine that creates remote Cursor agents and polls until co
 - Agent creation sends repo URL, branch, and prompt
 - Polling respects timeout and backoff configuration
 - Terminal states (success, failure) are correctly mapped to `EngineResult`
+
+**Verification:**
+
+- Mock HTTP: create returns agent ID, first poll returns "running", second poll returns "completed" with summary — `EngineResult.output` matches the summary
+- Mock HTTP: poll never returns terminal state within timeout — engine raises timeout error
+- Mock HTTP: create returns 401 — engine raises auth error with actionable message
 
 **Depends on:** 2
 
@@ -251,6 +307,12 @@ Build the first domain pack in this repo's `workflow/` directory, extracting pro
 - Review and verify prompts instruct the LLM to produce output parseable as `GateDecision`
 - Engine config maps plan/review/verify to raw-llm and execute to cursor-cli
 
+**Verification:**
+
+- `DomainPack.load("./workflow")` succeeds — no exceptions, `get_steps()` returns 6 steps in expected order
+- `build_prompt("review")` output contains instructions referencing `GateDecision` output format
+- `get_engine("plan")` returns `"raw-llm"`, `get_engine("execute")` returns `"cursor-cli"`
+
 **Depends on:** 4
 
 ---
@@ -275,6 +337,12 @@ Run a real task through the full orchestrator using the software-dev domain pack
 - Resumed thread skips already-completed steps
 - No orchestrator code references domain-specific concepts (software, code, git, etc.)
 
+**Verification:**
+
+- Run graph with all engines returning PASS gates — final state status is "completed" and all 6 state fields are populated
+- Inject ISSUES verdict at review step — graph halts, final state reflects gate failure, steps after review are not executed
+- Run graph to plan step, kill, resume with same thread — execution continues from execute, plan result is preserved from checkpoint
+
 **Depends on:** 6, 7, 8, 9, 10
 
 ---
@@ -297,6 +365,12 @@ Add step-level logging, forced reasoning enforcement, and per-run trace artifact
 - Missing reasoning fields in engine output produce a warning or error (configurable)
 - Completed workflow produces a JSON trace file with all step metrics
 - Trace schema is domain-agnostic
+
+**Verification:**
+
+- Run a 3-step graph — 3 structured log records emitted (one per node entry/exit pair) containing step name, duration, and token usage
+- Engine returns output missing `reasoning` field with enforcement enabled — warning or error is raised
+- Completed workflow produces a JSON trace file — file contains task ID, per-step metrics, and gate decisions; schema has no domain-specific fields
 
 **Depends on:** 11
 
@@ -322,6 +396,13 @@ Implement configurable interrupt points based on trust levels, with approve/modi
 - Graph pauses at interrupt points and resumes with (optionally modified) state
 - `autonomous` trust level produces zero interrupts
 
+**Verification:**
+
+- Set trust level to `autonomous` — `get_interrupt_points()` returns empty list
+- Set trust level to `gates_only` — interrupt points include review and verify but not plan or execute
+- Set trust level to `gates_only` with per-node override adding plan — interrupt points include plan, review, and verify
+- Resume from interrupt with modified state (edited plan text) — next step receives the modified plan
+
 **Depends on:** 11
 
 ---
@@ -345,6 +426,12 @@ Enable running multiple tasks concurrently with workspace isolation and resource
 - LLM concurrency respects the configured semaphore limit
 - Token budget halts a task when exceeded without affecting other tasks
 - Workspace isolation hook is called before task execution
+
+**Verification:**
+
+- Run 3 tasks with concurrency limit of 2 — at no point are more than 2 engine `run()` calls active simultaneously
+- Set per-task token budget to 100, engine reports 150 tokens — task is halted, other tasks continue unaffected
+- Each parallel task gets its own thread ID and checkpoint — checkpoints are independent
 
 **Depends on:** 11
 
@@ -371,6 +458,12 @@ Ship a command-line interface for running workflows from the terminal.
 - `gateflow list` shows all known tasks
 - `--domain` flag overrides the domain pack path
 
+**Verification:**
+
+- `gateflow run task-001 --domain ./workflow` — loads domain pack from `./workflow`, runs workflow, prints final status to stdout
+- `gateflow status task-001` with an existing checkpoint — prints current step and state summary
+- `gateflow list` with 3 checkpointed threads — prints all 3 task IDs and their statuses
+
 **Depends on:** 11
 
 ---
@@ -393,6 +486,13 @@ Add configurable automatic retries when a gate returns ISSUES, re-invoking the t
 - Retry count is tracked in state and persisted in checkpoint
 - Retried step receives the previous gate's issues in its prompt
 - Steps without `max_retries` configured behave as before (immediate halt on ISSUES)
+
+**Verification:**
+
+- Gate fails with `max_retries: 2` — graph re-invokes `retry_target` step with issues appended to prompt, up to 2 times
+- Gate fails 3 times with `max_retries: 2` — third failure routes to END
+- Step without `max_retries` configured, gate fails — immediate halt, backward-compatible behavior
+- Retry count is persisted in checkpoint — interrupt after first retry, resume, retries continue from correct count
 
 **Depends on:** 11
 
@@ -417,6 +517,13 @@ Allow each step to declare whether it explores context via tools or receives pre
 - Domain pack config controls the strategy per step without code changes
 - Default behavior (no context_strategy) is `explore`
 
+**Verification:**
+
+- Step with `context_strategy: "inject"` and `inject: ["plan", "diff"]` — prompt passed to engine contains plan and diff values from state
+- Step with `context_strategy: "explore"` — prompt passed to engine contains only the base prompt, no injected state
+- Step with no `context_strategy` configured — defaults to `"explore"` behavior
+- Update domain pack config to change a step from explore to inject — behavior changes without code modifications
+
 **Depends on:** 11
 
 ---
@@ -439,5 +546,11 @@ Build the in-process engine wrapping the Claude Agent SDK with hook-based observ
 - `allowed_tools` and `permission_mode` are correctly mapped to SDK parameters
 - `PreToolUse` hook logs tool calls
 - Engine is importable only when the optional dependency is installed (graceful import error otherwise)
+
+**Verification:**
+
+- Mock SDK `query()` returning a result — `EngineResult.output` matches result text, `allowed_tools` and `permission_mode` are mapped to SDK options
+- `PreToolUse` hook fires for each tool call during execution — all calls are logged
+- Import `ClaudeAgentEngine` when `claude-code-sdk` is not installed — raises `ImportError` with message explaining the missing optional dependency
 
 **Depends on:** 2

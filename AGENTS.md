@@ -32,3 +32,8 @@ uv run pre-commit run --all-files     # All pre-commit hooks
 ## Development Loop
 
 After making changes, run all checks (`ruff format`, `ruff check`, `mypy`, `pytest`). If any check fails, fix the issue and re-run **all** checks. Repeat until every check passes before considering the task done.
+
+## Environment Constraints
+
+- **Network**: Agent shell runs behind a corporate proxy that blocks outbound connections. Commands requiring network access (e.g., `pre-commit run`, `git fetch`, `pip install`) will fail in the agent shell. Run these in the user's terminal instead.
+- **pre-commit**: Do not run `pre-commit run` from the agent shell. Validate changes with `ruff format`, `ruff check`, `mypy`, and `pytest` directly — these work without network access.

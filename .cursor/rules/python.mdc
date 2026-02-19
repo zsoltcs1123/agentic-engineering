@@ -10,125 +10,21 @@ alwaysApply: false
 
 # Python Development Standards
 
-Python version: [3.14](https://docs.python.org/3/whatsnew/3.14.html)
+Python version: [3.14](https://docs.python.org/3/whatsnew/3.14.html). When uncertain about 3.14 features, check the official docs.
 
-**Note**: When uncertain about Python 3.14 features or syntax, navigate to the official documentation to verify current capabilities.
+## Style
 
-## Python 3.14 Key Features
+- **Type hints on everything** - All function parameters, return types, and variables with non-obvious types
+- **Absolute imports only** - Never use relative imports
+- **No docstrings** unless it's a public API or explicitly requested
+- **No comments** - Prefer self-documenting code through clear naming and structure
+- **Functional over OO** - Prefer functions over classes when appropriate
 
-Python 3.14 (released October 7, 2025) includes these notable features:
+## Design
 
-- **Deferred evaluation of annotations (PEP 649)** - Type annotations are evaluated lazily, improving startup time and enabling forward references
-- **Template string literals (PEP 750)** - New syntax for creating template strings with embedded expressions
-- **Simplified except\* syntax (PEP 758)** - `except*` expressions can now be used without brackets
-- **Control flow in finally blocks (PEP 765)** - `return`, `break`, and `continue` statements are now allowed in `finally` blocks
-- **Subinterpreters (PEP 734)** - Multiple interpreters in the standard library for better concurrency
-- **compression.zstd module** - Native Zstandard compression support
-- **Improved async introspection** - Better tools for inspecting async code
-- **Free-threaded mode improvements** - Enhanced GIL-free execution capabilities
-
-## General principles
-
-Follow these principles when writing Python code:
-
-### Code Style
-
-- **Write simple, clean, and concise pythonic code**
-- **Always add type hints** - Use type annotations for all function parameters and return types
-- **Use absolute imports** - Never use relative imports
-- **Prefer functional style where possible** - Functions over classes when appropriate
-- **Apply the Zen of Python** - Beautiful is better than ugly, Simple is better than complex, etc.
-
-### Naming conventions
-
-- **Functions/methods**: `snake_case`
-- **Classes**: `PascalCase`
-- **Variables**: `snake_case`
-- **Constants**: `UPPER_SNAKE_CASE`
-- **Fields**: `snake_case`
-- **Private Methods**: `_leading_underscore`
-
-### Documentation
-
-- **Don't generate docstrings** unless it's a public API or explicitly requested
-- **Don't write comments** - Good code documents itself through clear naming and structure
-- If documentation is needed, prefer self-documenting code over comments
-
-### Design Patterns
-
-- **RERO (Receive an Object, Return an Object)** - Functions should receive objects and return objects, not primitives when dealing with domain concepts
-- **SLAP (Single Level of Abstraction Principle)** - Each function should operate at a single level of abstraction
-- **KISS (Keep It Simple, Stupid)** - Favor simplicity over complexity; write straightforward solutions
-- **YAGNI (You Aren't Gonna Need It)** - Don't add functionality until it's actually needed
-- **Use dataclasses for models** - Prefer `@dataclass` over regular classes for data models
-
-### Type Hints
-
-Always include type hints:
-
-```python
-from typing import Optional
-from dataclasses import dataclass
-
-@dataclass
-class User:
-    name: str
-    email: str
-    age: int
-
-def process_user(user: User) -> Optional[User]:
-    # Implementation
-    return user
-```
-
-### Imports
-
-Use absolute imports:
-
-```python
-# Good
-from src.your_package.models import User
-from src.your_package.services import UserService
-
-# Bad
-from .models import User
-from ..services import UserService
-```
-
-## Functional Style
-
-Prefer functional patterns:
-
-```python
-# Good - functional style
-def filter_active_users(users: list[User]) -> list[User]:
-    return [user for user in users if user.is_active]
-
-# Prefer over imperative style when possible
-```
-
-### Data Models
-
-Use dataclasses for models:
-
-```python
-from dataclasses import dataclass
-from typing import Optional
-
-@dataclass
-class Product:
-    id: int
-    name: str
-    price: float
-    description: Optional[str] = None
-```
-
-## General Best Practices
-
-- Follow SOLID principles
-- Keep functions small and focused
-- Use meaningful variable and function names
-- Avoid premature optimization
-- Write code that is easy to read and understand
-- Prefer composition over inheritance
-- Handle errors explicitly with proper exception types
+- **Dataclasses for data models** - Prefer `@dataclass` over regular classes
+- **RERO** - Receive an object, return an object; avoid primitive obsession for domain concepts
+- **SLAP** - Each function should operate at a single level of abstraction
+- **YAGNI** - Don't add functionality until it's actually needed
+- **Composition over inheritance**
+- **Explicit error handling** - Use proper exception types, not bare `except`
