@@ -2,15 +2,17 @@
 
 __version__ = "0.1.0"
 
-from gateflow.engines import ExecutionEngine, PermissionMode
+from gateflow.engines import EngineError, ExecutionEngine, PermissionMode, RawLLMEngine
 from gateflow.models import EngineResult, GateDecision, NodeOutput
 from gateflow.state import WorkflowState
 
 __all__ = [
+    "EngineError",
     "EngineResult",
     "ExecutionEngine",
     "GateDecision",
     "NodeOutput",
     "PermissionMode",
+    "RawLLMEngine",
     "WorkflowState",
 ]

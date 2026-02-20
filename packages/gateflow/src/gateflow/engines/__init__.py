@@ -1,6 +1,7 @@
 from typing import Literal, Protocol, runtime_checkable
 
-from gateflow.models import EngineResult
+from gateflow.engines.raw_llm import RawLLMEngine
+from gateflow.models import EngineError, EngineResult
 
 PermissionMode = Literal["readonly", "acceptEdits", "default"]
 
@@ -14,3 +15,11 @@ class ExecutionEngine(Protocol):
         allowed_tools: list[str],
         permission_mode: PermissionMode,
     ) -> EngineResult: ...
+
+
+__all__ = [
+    "EngineError",
+    "ExecutionEngine",
+    "PermissionMode",
+    "RawLLMEngine",
+]

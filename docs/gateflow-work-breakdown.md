@@ -7,7 +7,7 @@ Build Gateflow — a domain-agnostic, code-based workflow orchestrator on LangGr
 | #   | Task                                           | Phase | Depends On     | Status  |
 | --- | ---------------------------------------------- | ----- | -------------- | ------- |
 | 1   | Define WorkflowState and base models           | MVP   | None           | DONE    |
-| 2   | Define ExecutionEngine protocol                | MVP   | 1              | PENDING |
+| 2   | Define ExecutionEngine protocol                | MVP   | 1              | DONE    |
 | 3   | Implement raw LLM engine                       | MVP   | 2              | PENDING |
 | 4   | Implement DomainPack loader                    | MVP   | 2              | PENDING |
 | 5   | Build dynamic graph constructor                | MVP   | 1, 4           | PENDING |
@@ -33,11 +33,11 @@ Define the core data structures that flow through the graph: the state TypedDict
 
 **Steps:**
 
-1. Add `langgraph`, and `pydantic`, as dependencies in `packages/gateflow/pyproject.toml`.
-2. Create `packages/gateflow/src/gateflow/state.py` with `WorkflowState` TypedDict (task_id, task_description, working_directory, current_step, status, plan, review_result, verification_result, trace, domain_data)
-3. Create `packages/gateflow/src/gateflow/models.py` with `EngineResult` dataclass (output, tool_calls, token_usage, duration_s), `NodeOutput` Pydantic model (reasoning, assumptions, confidence, blind_spots, output), `GateDecision` Pydantic model (verdict, reasoning, evidence, blind_spots, issues)
-4. Export public API from `__init__.py`
-5. Write unit tests for model validation (GateDecision rejects invalid verdict, NodeOutput confidence range, EngineResult defaults)
+1. Add `langgraph` and `pydantic` as dependencies
+2. Define `WorkflowState` as a LangGraph-compatible state type with the fields described in the architecture doc (task_id, task_description, working_directory, status, plan, review_result, verification_result, trace, domain_data, etc.)
+3. Define the structured output models: `EngineResult` (output, tool_calls, token_usage, duration), `NodeOutput` (reasoning, assumptions, confidence, blind_spots, output), and `GateDecision` (verdict, reasoning, evidence, blind_spots, issues) — with appropriate validation constraints
+4. Export the public API from the package root
+5. Write unit tests for model validation
 
 **Acceptance criteria:**
 
@@ -48,9 +48,9 @@ Define the core data structures that flow through the graph: the state TypedDict
 **Verification:**
 
 - Instantiate `WorkflowState` with all required fields, use it as a LangGraph state annotation — no errors
-- Create `GateDecision` with `verdict="MAYBE"` — Pydantic raises `ValidationError`
-- Create `NodeOutput` with `confidence=1.5` — rejected; `confidence=0.75` — accepted
-- Create `EngineResult` with only `output` provided — defaults populate (`tool_calls=[]`, `duration_s=0.0`)
+- `GateDecision` rejects invalid verdict values
+- `NodeOutput` rejects out-of-range confidence
+- `EngineResult` populates sensible defaults for optional fields
 
 **Depends on:** None
 
@@ -58,26 +58,26 @@ Define the core data structures that flow through the graph: the state TypedDict
 
 ### 2. Define ExecutionEngine protocol
 
-Create the protocol class that all execution engines must implement. This is the contract between the orchestrator and any backend.
+Create the protocol that all execution engines must implement. This is the contract between the orchestrator and any backend. See the architecture doc for the interface signature.
 
 **Steps:**
 
-1. Create `packages/gateflow/src/gateflow/engines/__init__.py` with the `ExecutionEngine` Protocol class defining `async def run(self, prompt, working_directory, allowed_tools, permission_mode) -> EngineResult`
-2. Add a `PermissionMode` string literal type (`readonly`, `acceptEdits`, `default`)
+1. Define the `ExecutionEngine` protocol with a `run` method returning `EngineResult`
+2. Define a permission mode type for the permission_mode parameter
 3. Export from package root
-4. Write a unit test that verifies a minimal conforming class satisfies the protocol (using `runtime_checkable`)
+4. Write a unit test verifying protocol conformance at runtime
 
 **Acceptance criteria:**
 
-- `ExecutionEngine` is a `typing.Protocol` with a single `run` method returning `EngineResult`
-- A class implementing the method is recognized as conforming at runtime
-- mypy passes on a conforming implementation
+- `ExecutionEngine` is a runtime-checkable `Protocol`
+- A class implementing `run` is recognized as conforming
+- mypy passes on conforming implementations
 
 **Verification:**
 
-- Define a class with `async def run(...)` matching the signature — `isinstance` check with `runtime_checkable` returns `True`
-- Define a class missing the `run` method — `isinstance` check returns `False`
-- Run `mypy` on a file with a conforming and a non-conforming class — conforming passes, non-conforming produces a type error
+- A conforming class passes `isinstance` check
+- A non-conforming class fails `isinstance` check
+- mypy catches type mismatches
 
 **Depends on:** 1
 
@@ -89,24 +89,24 @@ Build the simplest engine: a direct Anthropic API call with no agent tools. Used
 
 **Steps:**
 
-1. Create `packages/gateflow/src/gateflow/engines/raw_llm.py` with `RawLLMEngine` class
-2. Implement `run()`: construct messages from prompt, call `anthropic.AsyncAnthropic().messages.create()`, parse response into `EngineResult`
-3. Accept model name and max_tokens as constructor parameters with sensible defaults
+1. Implement an engine that calls the Anthropic messages API directly
+2. Accept model name and max_tokens as configuration with sensible defaults
+3. Map prompt to user message, parse response into `EngineResult`
 4. Handle API errors (rate limit, auth, timeout) with clear error messages
 5. Write unit tests using a mocked Anthropic client
 
 **Acceptance criteria:**
 
-- `RawLLMEngine` conforms to `ExecutionEngine` protocol
+- Conforms to `ExecutionEngine` protocol
 - Prompt is sent as a user message, response text lands in `EngineResult.output`
-- Token usage from API response is captured in `EngineResult.token_usage`
-- API errors raise descriptive exceptions (not raw httpx errors)
+- Token usage from API response is captured
+- API errors raise descriptive exceptions, not raw httpx errors
 
 **Verification:**
 
-- Mock Anthropic client returning a valid response — `EngineResult.output` contains the response text and `token_usage` matches API payload
-- Mock Anthropic client raising `RateLimitError` — engine raises a descriptive error, not a raw httpx exception
-- Call `run()` with an empty prompt — engine sends the request and returns whatever the API returns (no client-side rejection)
+- Mock client returning a valid response — output and token_usage match
+- Mock client raising a rate limit error — engine raises a descriptive error
+- Empty prompt — engine sends the request without client-side rejection
 
 **Depends on:** 2
 
@@ -114,29 +114,28 @@ Build the simplest engine: a direct Anthropic API call with no agent tools. Used
 
 ### 4. Implement DomainPack loader
 
-Build the `DomainPack` class that reads a domain directory (domain.json, prompts/, rules/) and provides prompt assembly and engine resolution.
+Build the component that reads a domain directory (domain.json, prompts/, rules/) and provides prompt assembly and engine resolution. See the architecture doc for structure and behavior.
 
 **Steps:**
 
-1. Create `packages/gateflow/src/gateflow/domain.py` with `DomainPack` class
-2. Implement `DomainPack.load(path)` class method: validate directory structure, parse `domain.json`, verify referenced prompt/rule files exist
-3. Implement `build_prompt(step_name)`: load base prompt from `prompts/{step}.md`, append rule texts from `skillRules` config
-4. Implement `get_engine(step_name)`: resolve engine from `engine.overrides` falling back to `engine.default`
-5. Implement `get_steps()`: return the step list from domain.json config
-6. Write unit tests with a fixture domain pack directory on disk
+1. Implement loading from a directory path: validate structure, parse config, verify referenced files exist
+2. Implement prompt assembly: load base prompt for a step and append configured rule texts
+3. Implement engine resolution: return per-step override or default engine
+4. Implement step list access: return ordered steps from config
+5. Write unit tests with a fixture domain pack directory
 
 **Acceptance criteria:**
 
-- `DomainPack.load()` raises clear errors for missing `domain.json`, missing prompt files, or invalid config
-- `build_prompt()` concatenates base prompt + applicable rules
-- `get_engine()` returns override engine for a step if configured, default otherwise
-- `get_steps()` returns the ordered step list from config
+- Loading raises clear errors for missing or invalid config
+- Prompt assembly concatenates base prompt + applicable rules
+- Engine resolution returns override when configured, default otherwise
+- Step list returns the ordered steps from config
 
 **Verification:**
 
-- Point `DomainPack.load()` at a directory missing `domain.json` — raises clear error naming the missing file
-- Load a valid pack, call `build_prompt("plan")` where plan has two rules configured — returned string contains base prompt text followed by both rule texts
-- Call `get_engine("execute")` when execute has an override — returns the override; call `get_engine("document")` with no override — returns the default
+- Load from a directory missing config — raises clear error
+- Load valid pack, build prompt for a step with rules — returned string contains base prompt and rule texts
+- Engine resolution returns override for overridden step, default for non-overridden step
 
 **Depends on:** 2
 
@@ -144,28 +143,28 @@ Build the `DomainPack` class that reads a domain directory (domain.json, prompts
 
 ### 5. Build dynamic graph constructor
 
-Implement `build_graph()` that reads the step list from a DomainPack and constructs a LangGraph StateGraph with nodes, edges, and conditional gate edges.
+Implement the function that reads step definitions from a DomainPack and constructs a LangGraph StateGraph with nodes, edges, and conditional gate edges. See the architecture doc for the graph construction pattern.
 
 **Steps:**
 
-1. Create `packages/gateflow/src/gateflow/graph.py`
-2. Implement `build_graph(domain, checkpointer, engine_registry)` that iterates `domain.get_steps()`, adds a node per step, wires sequential edges and conditional edges for gate steps
-3. Implement `gate_check()` function that inspects state to determine `pass` or `issues` routing
-4. Set entry point to first step, terminal edge from last step to END, gate failure edges to END
-5. Write unit tests: build a graph from a mock domain pack, verify node count, edge topology, and that gate steps have conditional edges
+1. Implement a function that takes a DomainPack (and supporting config) and returns a compiled LangGraph graph
+2. Add a node per step, wire sequential edges for non-gate steps and conditional edges for gate steps
+3. Gate steps route to the next step on PASS and to END on ISSUES
+4. Set entry/terminal points
+5. Write unit tests verifying node count, edge topology, and gate routing
 
 **Acceptance criteria:**
 
-- `build_graph()` returns a `CompiledGraph` with one node per step in domain config
-- Gate steps route to next step on PASS and to END on ISSUES
+- Returns a compiled graph with one node per step
+- Gate steps have conditional edges (PASS → next, ISSUES → END)
 - Non-gate steps have unconditional edges to the next step
-- Graph compiles without errors for a valid domain config
+- Graph compiles without errors for valid domain config
 
 **Verification:**
 
-- Build graph from a 3-step domain (plan, execute, review where review is a gate) — compiled graph has 3 nodes and review has conditional edges (PASS to next, ISSUES to END)
-- Build graph from a 1-step domain (single non-gate step) — graph has 1 node with an edge to END
-- Build graph where two consecutive steps are gates — both have conditional edges wired correctly
+- 3-step domain with a gate step — gate has conditional edges
+- 1-step domain — graph has a single node with edge to END
+- Two consecutive gate steps — both have conditional edges wired correctly
 
 **Depends on:** 1, 4
 
@@ -173,29 +172,29 @@ Implement `build_graph()` that reads the step list from a DomainPack and constru
 
 ### 6. Implement make_node and prompt assembly
 
-Build the node factory that creates the async function each graph node executes: assemble prompt, inject state, delegate to engine, update state.
+Build the node factory that creates the async function each graph node executes: assemble prompt, inject state context, delegate to engine, update state.
 
 **Steps:**
 
-1. Implement `make_node(step, domain, engine_registry)` in `graph.py` that returns an async node function
-2. Implement `inject_state(prompt, state)`: template state fields into the prompt (at minimum: task_description, plan, working_directory, and any domain_data)
-3. Implement `update_state(state, step_name, result)`: write engine output to appropriate state field (plan for plan step, review_result for review, etc.), append to trace
-4. For gate steps, parse `EngineResult.output` into `GateDecision` and write verdict + issues to state
-5. Write unit tests: mock engine, verify prompt assembly includes rules, verify state is updated correctly after node execution
+1. Implement a factory that returns an async node function for a given step
+2. Implement state injection into the prompt (at minimum: task_description, plan, working_directory, domain_data)
+3. Implement state update after engine execution: write output to the appropriate state field, append to trace
+4. For gate steps, parse engine output into a `GateDecision` and write the verdict to state
+5. Write unit tests with a mock engine verifying prompt assembly and state updates
 
 **Acceptance criteria:**
 
-- Node function calls the correct engine with assembled prompt and step's tool/permission config
-- State is updated with the engine's output under the correct field
-- Gate nodes parse output into GateDecision and the verdict is available for `gate_check`
-- Trace list accumulates an entry per executed step
+- Node calls the correct engine with assembled prompt and step's tool/permission config
+- State is updated with engine output under the correct field
+- Gate nodes parse output into GateDecision and the verdict is available for routing
+- Trace accumulates an entry per executed step
 
 **Verification:**
 
-- Run a node with a mock engine — verify the prompt passed to the engine contains both the base prompt text and injected state fields (`task_description`, `plan`)
-- Run a gate node where engine returns valid `GateDecision` JSON with `verdict: "PASS"` — state contains parsed decision and `gate_check` returns `"pass"`
-- Run a gate node where engine returns `verdict: "ISSUES"` with 2 issues — state stores the issues list and `gate_check` returns `"issues"`
-- Execute 3 nodes sequentially — `state["trace"]` has 3 entries in order
+- Mock engine run — prompt contains base prompt text and injected state fields
+- Gate node with PASS verdict — state reflects parsed decision, routing returns pass
+- Gate node with ISSUES verdict — state stores issues, routing returns issues
+- Execute 3 nodes — trace has 3 entries in order
 
 **Depends on:** 3, 5
 
@@ -207,22 +206,22 @@ Configure LangGraph's built-in async SQLite checkpointer so workflow state persi
 
 **Steps:**
 
-1. Add `langgraph-checkpoint-sqlite` (or equivalent) as a dependency
-2. Create `packages/gateflow/src/gateflow/checkpoint.py` with a factory function `create_checkpointer(db_path)` that returns the async SQLite checkpointer
-3. Wire the checkpointer into `build_graph()` via the `checkpointer` parameter
-4. Write an integration test: run a graph partway, kill it, resume from checkpoint, verify state continuity
+1. Add the appropriate LangGraph checkpoint dependency
+2. Implement a factory function that creates the async SQLite checkpointer for a given path
+3. Wire the checkpointer into the graph builder
+4. Write an integration test: run partway, resume from checkpoint, verify state continuity
 
 **Acceptance criteria:**
 
 - Workflow state survives process restart — resuming a thread ID continues from the last completed step
 - Checkpoint database is created at the specified path
-- `build_graph()` accepts and uses the checkpointer
+- Graph builder accepts and uses the checkpointer
 
 **Verification:**
 
-- Run graph to completion — checkpoint DB file exists at the specified path and is non-empty
-- Run graph, interrupt after step 2 of 4, resume with same thread ID — execution continues from step 3, steps 1-2 are not re-executed
-- Resume with a non-existent thread ID — graph starts from the beginning
+- Run to completion — checkpoint DB file exists and is non-empty
+- Interrupt after step 2 of 4, resume with same thread — execution continues from step 3
+- Resume with non-existent thread — starts from the beginning
 
 **Depends on:** 5
 
@@ -230,28 +229,28 @@ Configure LangGraph's built-in async SQLite checkpointer so workflow state persi
 
 ### 8. Implement Cursor CLI engine
 
-Build the subprocess-based engine that invokes `cursor agent chat` with JSON output, mapping allowed_tools and permission_mode to CLI flags.
+Build the subprocess-based engine that invokes the Cursor CLI agent with JSON output, mapping allowed_tools and permission_mode to CLI flags. See the architecture doc for the CLI invocation pattern.
 
 **Steps:**
 
-1. Create `packages/gateflow/src/gateflow/engines/cursor_cli.py` with `CursorCLIEngine` class
-2. Implement `run()`: build argument list (`cursor agent chat <prompt> --print --output-format json`), add `--force` when `permission_mode == "acceptEdits"`, spawn via `asyncio.create_subprocess_exec`, capture stdout/stderr
-3. Parse JSON output into `EngineResult` (extract text, handle non-zero exit codes)
-4. Accept configurable `cursor_path` for non-standard installations
-5. Write unit tests mocking `asyncio.create_subprocess_exec`
+1. Implement an engine that spawns the Cursor CLI as a subprocess
+2. Map permission_mode to appropriate CLI flags
+3. Parse JSON output into `EngineResult`, handle non-zero exit codes
+4. Accept configurable path for non-standard Cursor installations
+5. Write unit tests mocking the subprocess
 
 **Acceptance criteria:**
 
-- `CursorCLIEngine` conforms to `ExecutionEngine` protocol
-- Subprocess is invoked with correct arguments including `--print` and `--output-format json`
-- `--force` flag is added only when permission_mode is `acceptEdits`
+- Conforms to `ExecutionEngine` protocol
+- Subprocess is invoked with correct arguments for JSON output
+- Permission mode flags are applied correctly
 - Non-zero exit codes and malformed JSON produce descriptive errors
 
 **Verification:**
 
-- Mock subprocess returning valid JSON on stdout — `EngineResult.output` matches the extracted text
-- Call with `permission_mode="acceptEdits"` — subprocess args include `--force`; call with `permission_mode="default"` — args do not include `--force`
-- Mock subprocess returning exit code 1 — engine raises descriptive error containing stderr content
+- Mock subprocess returning valid JSON — output matches
+- Permission mode "acceptEdits" — correct flag is present; default — flag is absent
+- Non-zero exit code — descriptive error with stderr content
 
 **Depends on:** 2
 
@@ -259,28 +258,28 @@ Build the subprocess-based engine that invokes `cursor agent chat` with JSON out
 
 ### 9. Implement Cursor Cloud API engine
 
-Build the REST-based engine that creates remote Cursor agents and polls until completion.
+Build the REST-based engine that creates remote Cursor agents and polls until completion. See the architecture doc for the API pattern.
 
 **Steps:**
 
-1. Create `packages/gateflow/src/gateflow/engines/cursor_cloud.py` with `CursorCloudEngine` class
-2. Implement `run()`: POST to create agent (repo, branch, prompt), poll status endpoint until terminal state, extract result
-3. Implement polling with configurable interval and timeout, exponential backoff
-4. Map `working_directory` to a branch name (constructor accepts a mapping strategy or callable)
-5. Write unit tests mocking HTTP calls (use `httpx` or `aiohttp` mock)
+1. Implement an engine that creates a remote Cursor agent via REST API
+2. Implement polling with configurable interval, timeout, and backoff
+3. Map working_directory to a branch name
+4. Map terminal states to `EngineResult`
+5. Write unit tests mocking HTTP calls
 
 **Acceptance criteria:**
 
-- `CursorCloudEngine` conforms to `ExecutionEngine` protocol
-- Agent creation sends repo URL, branch, and prompt
+- Conforms to `ExecutionEngine` protocol
+- Agent creation sends repo, branch, and prompt
 - Polling respects timeout and backoff configuration
-- Terminal states (success, failure) are correctly mapped to `EngineResult`
+- Terminal states (success, failure) correctly map to `EngineResult`
 
 **Verification:**
 
-- Mock HTTP: create returns agent ID, first poll returns "running", second poll returns "completed" with summary — `EngineResult.output` matches the summary
-- Mock HTTP: poll never returns terminal state within timeout — engine raises timeout error
-- Mock HTTP: create returns 401 — engine raises auth error with actionable message
+- Mock: create returns agent ID, poll returns completed — output matches
+- Mock: poll never reaches terminal state within timeout — timeout error
+- Mock: create returns 401 — auth error with actionable message
 
 **Depends on:** 2
 
@@ -288,30 +287,27 @@ Build the REST-based engine that creates remote Cursor agents and polls until co
 
 ### 10. Create software-dev domain pack
 
-Build the first domain pack in this repo's `workflow/` directory, extracting prompts from the existing `.agents/` skills and configuring engines per step.
+Build the first domain pack for software development, extracting prompts from the existing `.agents/` skills and configuring engines per step.
 
 **Steps:**
 
-1. Create `workflow/domain.json` with step definitions (plan, execute, review, verify, document, finalize), engine config (raw-llm default, cursor-cli for execute), tool bindings, and skillRules
-2. Create `workflow/prompts/plan.md` — extract LLM instructions from `.agents/skills/workflow/plan/SKILL.md`, strip orchestration logic, keep only what the LLM needs to produce a plan
-3. Create `workflow/prompts/execute.md` — extract from `.agents/skills/workflow/implement/SKILL.md`
-4. Create `workflow/prompts/review.md` — extract from `.agents/skills/workflow/code-review/SKILL.md`, include GateDecision output format
-5. Create `workflow/prompts/verify.md` — extract from `.agents/skills/workflow/code-verification/SKILL.md`, include GateDecision output format
-6. Create `workflow/prompts/document.md` and `workflow/prompts/finalize.md` — extract from documentation-update and commit/push-pr skills
-7. Copy relevant rules from `.agents/rules/` to `workflow/rules/` (coding-standards, plan, etc.)
+1. Create the domain pack directory with a config file defining steps (plan, execute, review, verify, document, finalize), engine config, tool bindings, and rule assignments
+2. Extract LLM-facing prompts from `.agents/skills/workflow/` — strip orchestration logic, keep only what the LLM needs
+3. Review and verify prompts must instruct the LLM to produce output parseable as a gate decision
+4. Copy relevant rules from `.agents/rules/`
 
 **Acceptance criteria:**
 
-- `DomainPack.load("./workflow")` succeeds without errors
-- Each step in `domain.json` has a corresponding prompt file in `workflow/prompts/`
-- Review and verify prompts instruct the LLM to produce output parseable as `GateDecision`
-- Engine config maps plan/review/verify to raw-llm and execute to cursor-cli
+- DomainPack loads the pack successfully
+- Each step has a corresponding prompt file
+- Review and verify prompts produce gate-decision-compatible output
+- Engine config maps reasoning steps to raw-llm, execution to cursor-cli
 
 **Verification:**
 
-- `DomainPack.load("./workflow")` succeeds — no exceptions, `get_steps()` returns 6 steps in expected order
-- `build_prompt("review")` output contains instructions referencing `GateDecision` output format
-- `get_engine("plan")` returns `"raw-llm"`, `get_engine("execute")` returns `"cursor-cli"`
+- Load succeeds, step list returns expected steps in order
+- Review prompt contains gate decision output format instructions
+- Engine resolution returns correct engine per step
 
 **Depends on:** 4
 
@@ -319,29 +315,27 @@ Build the first domain pack in this repo's `workflow/` directory, extracting pro
 
 ### 11. End-to-end integration test
 
-Run a real task through the full orchestrator using the software-dev domain pack. Validate state transitions, gate behavior, checkpointing, and output.
+Validate the full orchestrator with the software-dev domain pack: state transitions, gate behavior, checkpointing, and output.
 
 **Steps:**
 
-1. Write an integration test that loads the software-dev domain pack, builds the graph with SQLite checkpointer, and invokes with a simple task (e.g., "add a utility function")
-2. Mock or stub engines to return canned responses (plan text, implementation confirmation, PASS gate decisions) — avoid real API calls in CI
-3. Assert state transitions: each step updates the correct state field and trace entry
-4. Assert gate behavior: inject an ISSUES response for review, verify the graph halts at END
-5. Assert checkpoint resume: interrupt after plan step, resume thread, verify it continues from execute
-6. Run with real engines manually (not in CI) to validate end-to-end with actual LLM calls
+1. Write a test that loads the domain pack, builds the graph with checkpointer, and runs a simple task
+2. Use mock/stub engines returning canned responses — avoid real API calls in CI
+3. Assert state transitions, gate behavior (halt on ISSUES), and checkpoint resume
+4. Verify no orchestrator code references domain-specific concepts
 
 **Acceptance criteria:**
 
-- Graph executes all steps in order when all gates pass, final state is complete
-- Graph halts at the correct point when a gate returns ISSUES
+- Graph executes all steps when all gates pass, final state is complete
+- Graph halts correctly when a gate returns ISSUES
 - Resumed thread skips already-completed steps
-- No orchestrator code references domain-specific concepts (software, code, git, etc.)
+- Orchestrator code is domain-agnostic
 
 **Verification:**
 
-- Run graph with all engines returning PASS gates — final state status is "completed" and all 6 state fields are populated
-- Inject ISSUES verdict at review step — graph halts, final state reflects gate failure, steps after review are not executed
-- Run graph to plan step, kill, resume with same thread — execution continues from execute, plan result is preserved from checkpoint
+- All gates pass — final status is "completed", all state fields populated
+- ISSUES at review — graph halts, steps after review are not executed
+- Interrupt and resume — execution continues from correct step, earlier results preserved
 
 **Depends on:** 6, 7, 8, 9, 10
 
@@ -353,24 +347,23 @@ Add step-level logging, forced reasoning enforcement, and per-run trace artifact
 
 **Steps:**
 
-1. Create `packages/gateflow/src/gateflow/observability.py`
-2. Implement step-level structured logging: emit a log record on node entry/exit with step name, duration, token usage, and state diff
-3. Enforce `NodeOutput` schema on engine results — parse or validate that reasoning, assumptions, confidence, blind_spots are present
-4. Implement trace writer: after graph completion, serialize the full trace list (from state) to a JSON file with task ID, domain name, timestamps, per-step metrics, and gate decisions
-5. Write unit tests for trace serialization and reasoning validation
+1. Implement step-level structured logging: emit a log record on node entry/exit with step name, duration, token usage
+2. Enforce the `NodeOutput` schema on engine results — validate that reasoning fields are present
+3. Implement a trace writer: after graph completion, serialize the full trace to a JSON file with task ID, timestamps, per-step metrics, and gate decisions
+4. Write unit tests for trace serialization and reasoning validation
 
 **Acceptance criteria:**
 
-- Each step execution emits structured log records (parseable, not just print statements)
-- Missing reasoning fields in engine output produce a warning or error (configurable)
-- Completed workflow produces a JSON trace file with all step metrics
+- Each step execution emits structured log records (not just print statements)
+- Missing reasoning fields produce a warning or error (configurable)
+- Completed workflow produces a JSON trace file
 - Trace schema is domain-agnostic
 
 **Verification:**
 
-- Run a 3-step graph — 3 structured log records emitted (one per node entry/exit pair) containing step name, duration, and token usage
-- Engine returns output missing `reasoning` field with enforcement enabled — warning or error is raised
-- Completed workflow produces a JSON trace file — file contains task ID, per-step metrics, and gate decisions; schema has no domain-specific fields
+- 3-step graph — 3 structured log records with step name, duration, token usage
+- Engine output missing reasoning with enforcement enabled — warning or error
+- Completed workflow — JSON trace file with task ID, per-step metrics, gate decisions
 
 **Depends on:** 11
 
@@ -378,30 +371,29 @@ Add step-level logging, forced reasoning enforcement, and per-run trace artifact
 
 ### 13. Add trust levels and interrupt configuration
 
-Implement configurable interrupt points based on trust levels, with approve/modify/reject actions at each interrupt.
+Implement configurable interrupt points based on trust levels, with approve/modify/reject actions at each interrupt. See the architecture doc for trust level definitions.
 
 **Steps:**
 
-1. Create `packages/gateflow/src/gateflow/interrupts.py`
-2. Define `TrustLevel` enum: autonomous, gates_only, review_all, cautious — each mapping to a set of interrupt-before step names
-3. Implement `get_interrupt_points(config)` that resolves trust level + per-node overrides into a list of interrupt-before nodes
-4. Wire into `build_graph()` via LangGraph's `interrupt_before` parameter
-5. Implement state modification on resume: allow callers to patch state (edit plan, override gate verdict) before continuing
-6. Write integration tests: set trust level to `gates_only`, verify graph pauses before review/verify; resume with modified state, verify it propagates
+1. Define trust levels (autonomous, gates_only, review_all, cautious) mapping to interrupt-before step sets
+2. Support per-node overrides that add or remove interrupts
+3. Wire into the graph builder via LangGraph's `interrupt_before` parameter
+4. Allow callers to modify state on resume (edit plan, override gate verdict)
+5. Write integration tests per trust level
 
 **Acceptance criteria:**
 
 - Each trust level produces the correct set of interrupt points
-- Per-node overrides add or remove interrupts beyond the trust level default
+- Per-node overrides add or remove interrupts
 - Graph pauses at interrupt points and resumes with (optionally modified) state
-- `autonomous` trust level produces zero interrupts
+- Autonomous produces zero interrupts
 
 **Verification:**
 
-- Set trust level to `autonomous` — `get_interrupt_points()` returns empty list
-- Set trust level to `gates_only` — interrupt points include review and verify but not plan or execute
-- Set trust level to `gates_only` with per-node override adding plan — interrupt points include plan, review, and verify
-- Resume from interrupt with modified state (edited plan text) — next step receives the modified plan
+- Autonomous — empty interrupt list
+- Gates_only — interrupts at review and verify, not plan or execute
+- Gates_only + per-node override adding plan — plan is also interrupted
+- Resume with modified state — next step receives the modification
 
 **Depends on:** 11
 
@@ -413,25 +405,24 @@ Enable running multiple tasks concurrently with workspace isolation and resource
 
 **Steps:**
 
-1. Create `packages/gateflow/src/gateflow/resources.py`
-2. Implement `run_batch(tasks, domain)` using `asyncio.gather` — each task gets its own thread ID and workspace
-3. Add semaphore-based LLM concurrency limiter (configurable max parallel API calls)
-4. Add per-task and global token budget with circuit breaker (halt task if budget exceeded)
-5. Define workspace isolation hook in DomainPack config (e.g., `isolation_strategy` field) — orchestrator calls a domain-provided callable to set up/tear down isolated workspaces
-6. Write integration tests: run 3 tasks in parallel with a concurrency limit of 2, verify only 2 engines run simultaneously
+1. Implement batch execution using asyncio — each task gets its own thread and workspace
+2. Add semaphore-based LLM concurrency limiting
+3. Add per-task and global token budget with circuit breaker
+4. Define a workspace isolation hook in domain config — orchestrator calls a domain-provided callable for setup/teardown
+5. Write integration tests for concurrency limiting and budget enforcement
 
 **Acceptance criteria:**
 
 - Multiple tasks execute concurrently with independent state and checkpoints
-- LLM concurrency respects the configured semaphore limit
-- Token budget halts a task when exceeded without affecting other tasks
+- LLM concurrency respects the configured limit
+- Token budget halts a task when exceeded without affecting others
 - Workspace isolation hook is called before task execution
 
 **Verification:**
 
-- Run 3 tasks with concurrency limit of 2 — at no point are more than 2 engine `run()` calls active simultaneously
-- Set per-task token budget to 100, engine reports 150 tokens — task is halted, other tasks continue unaffected
-- Each parallel task gets its own thread ID and checkpoint — checkpoints are independent
+- 3 tasks with concurrency limit 2 — at most 2 engine runs active simultaneously
+- Token budget exceeded — task halts, others continue
+- Each parallel task gets its own thread and independent checkpoint
 
 **Depends on:** 11
 
@@ -439,30 +430,27 @@ Enable running multiple tasks concurrently with workspace isolation and resource
 
 ### 15. Build CLI
 
-Ship a command-line interface for running workflows from the terminal.
+Ship a command-line interface for running workflows from the terminal. See the architecture doc for the intended commands.
 
 **Steps:**
 
-1. Add `click` (or `typer`) as a dependency
-2. Create `packages/gateflow/src/gateflow/cli.py` with commands: `run`, `status`, `list`, `trace`
-3. `run` command: load domain pack from `--domain` (default `./workflow`), resolve task, invoke graph, print result
-4. `status` command: load checkpoint for task, print current state and latest trace summary
-5. `list` command: enumerate all checkpointed threads, print task IDs and states
-6. `trace` command: print full or per-step trace from trace artifact
-7. Register CLI entry point in `pyproject.toml`
+1. Add a CLI framework dependency
+2. Implement commands: `run` (execute workflow), `status` (show current state), `list` (enumerate tasks), `trace` (show trace)
+3. Support a `--domain` flag to override the domain pack path
+4. Register the CLI entry point in pyproject.toml
 
 **Acceptance criteria:**
 
-- `gateflow run task-001` loads the domain pack, runs the workflow, and prints the final status
-- `gateflow status task-001` shows current step and state summary
-- `gateflow list` shows all known tasks
-- `--domain` flag overrides the domain pack path
+- `run` loads a domain pack, executes the workflow, prints final status
+- `status` shows current step and state summary for a task
+- `list` shows all known tasks
+- `--domain` overrides the domain pack path
 
 **Verification:**
 
-- `gateflow run task-001 --domain ./workflow` — loads domain pack from `./workflow`, runs workflow, prints final status to stdout
-- `gateflow status task-001` with an existing checkpoint — prints current step and state summary
-- `gateflow list` with 3 checkpointed threads — prints all 3 task IDs and their statuses
+- Run command loads domain, executes, prints status
+- Status command with existing checkpoint shows state
+- List command with multiple tasks shows all
 
 **Depends on:** 11
 
@@ -470,29 +458,29 @@ Ship a command-line interface for running workflows from the terminal.
 
 ### 16. Implement gate failure retry loops
 
-Add configurable automatic retries when a gate returns ISSUES, re-invoking the target step with issues appended to the prompt.
+Add configurable automatic retries when a gate returns ISSUES, re-invoking the target step with issues appended to the prompt. See the architecture doc's open design questions for the retry pattern.
 
 **Steps:**
 
-1. Extend step definition schema in domain.json with optional `max_retries` and `retry_target` fields
-2. Update `gate_check()` in `graph.py` to track retry count in state and route to `retry_target` instead of END when retries remain
-3. When retrying, append the gate's issues to the target step's prompt so the engine can address them
-4. After `max_retries` exhausted, route to END as before
-5. Write unit tests: gate fails twice then passes on third attempt; gate exhausts retries and halts
+1. Extend the step definition schema with optional retry configuration (max retries, retry target)
+2. Update gate routing to loop back to the target step when retries remain, halt when exhausted
+3. Append the gate's issues to the retried step's prompt
+4. Track retry count in state, persist in checkpoint
+5. Write unit tests for retry looping and exhaustion
 
 **Acceptance criteria:**
 
-- Gate failure routes to retry_target when retries remain, to END when exhausted
-- Retry count is tracked in state and persisted in checkpoint
+- Gate failure routes to retry target when retries remain, to END when exhausted
+- Retry count is tracked in state and persisted
 - Retried step receives the previous gate's issues in its prompt
-- Steps without `max_retries` configured behave as before (immediate halt on ISSUES)
+- Steps without retry config behave as before (immediate halt)
 
 **Verification:**
 
-- Gate fails with `max_retries: 2` — graph re-invokes `retry_target` step with issues appended to prompt, up to 2 times
-- Gate fails 3 times with `max_retries: 2` — third failure routes to END
-- Step without `max_retries` configured, gate fails — immediate halt, backward-compatible behavior
-- Retry count is persisted in checkpoint — interrupt after first retry, resume, retries continue from correct count
+- Gate fails with retries configured — re-invokes target with issues, up to max
+- Retries exhausted — routes to END
+- No retry config — immediate halt (backward compatible)
+- Retry count survives checkpoint resume
 
 **Depends on:** 11
 
@@ -500,29 +488,28 @@ Add configurable automatic retries when a gate returns ISSUES, re-invoking the t
 
 ### 17. Add per-step context strategy
 
-Allow each step to declare whether it explores context via tools or receives pre-injected context from the orchestrator.
+Allow each step to declare whether it explores context via tools or receives pre-injected context from the orchestrator. See the architecture doc's open design questions.
 
 **Steps:**
 
-1. Extend step definition schema with optional `context_strategy` (explore | inject) and `inject` fields (list of state keys to inject)
-2. Update `make_node` / `inject_state` to pre-inject specified state fields into the prompt when strategy is `inject`
-3. When strategy is `explore`, pass the prompt as-is (agent uses tools to find context)
-4. Update software-dev domain pack: set review/verify to `inject` with `["diff", "plan"]`, set execute to `explore`
-5. Write unit tests: verify inject strategy adds state content to prompt, explore strategy does not
+1. Extend step definition with optional context strategy (explore or inject) and injection field list
+2. When strategy is inject, pre-inject specified state fields into the prompt
+3. When strategy is explore, pass prompt as-is
+4. Default to explore when not configured
+5. Write unit tests verifying both strategies
 
 **Acceptance criteria:**
 
-- Steps with `context_strategy: inject` receive specified state fields in their prompt
-- Steps with `context_strategy: explore` receive only the base prompt
-- Domain pack config controls the strategy per step without code changes
-- Default behavior (no context_strategy) is `explore`
+- Inject strategy adds specified state fields to the prompt
+- Explore strategy passes only the base prompt
+- Strategy is configurable per step without code changes
+- Default is explore
 
 **Verification:**
 
-- Step with `context_strategy: "inject"` and `inject: ["plan", "diff"]` — prompt passed to engine contains plan and diff values from state
-- Step with `context_strategy: "explore"` — prompt passed to engine contains only the base prompt, no injected state
-- Step with no `context_strategy` configured — defaults to `"explore"` behavior
-- Update domain pack config to change a step from explore to inject — behavior changes without code modifications
+- Inject with specified fields — prompt contains those state values
+- Explore — prompt contains only the base prompt, no injected state
+- No strategy configured — defaults to explore behavior
 
 **Depends on:** 11
 
@@ -530,27 +517,27 @@ Allow each step to declare whether it explores context via tools or receives pre
 
 ### 18. Implement Claude Agent SDK engine
 
-Build the in-process engine wrapping the Claude Agent SDK with hook-based observability and tool restrictions.
+Build the in-process engine wrapping the Claude Agent SDK with hook-based observability and tool restrictions. See the architecture doc for the SDK integration pattern.
 
 **Steps:**
 
-1. Add `claude-code-sdk` (or equivalent) as an optional dependency in `pyproject.toml`
-2. Create `packages/gateflow/src/gateflow/engines/claude_agent.py` with `ClaudeAgentEngine` class
-3. Implement `run()`: call `query()` with prompt, map `allowed_tools` and `permission_mode` to SDK options, set `cwd` from `working_directory`
-4. Wire `PreToolUse` hook for logging every tool call
-5. Write unit tests mocking the SDK's `query` function
+1. Add the Claude Agent SDK as an optional dependency
+2. Implement an engine that calls the SDK, mapping allowed_tools and permission_mode to SDK options
+3. Wire a pre-tool-use hook for logging tool calls
+4. Ensure the engine is importable only when the optional dependency is installed (graceful error otherwise)
+5. Write unit tests mocking the SDK
 
 **Acceptance criteria:**
 
-- `ClaudeAgentEngine` conforms to `ExecutionEngine` protocol
-- `allowed_tools` and `permission_mode` are correctly mapped to SDK parameters
-- `PreToolUse` hook logs tool calls
-- Engine is importable only when the optional dependency is installed (graceful import error otherwise)
+- Conforms to `ExecutionEngine` protocol
+- allowed_tools and permission_mode map correctly to SDK parameters
+- Pre-tool-use hook logs tool calls
+- Graceful import error when SDK is not installed
 
 **Verification:**
 
-- Mock SDK `query()` returning a result — `EngineResult.output` matches result text, `allowed_tools` and `permission_mode` are mapped to SDK options
-- `PreToolUse` hook fires for each tool call during execution — all calls are logged
-- Import `ClaudeAgentEngine` when `claude-code-sdk` is not installed — raises `ImportError` with message explaining the missing optional dependency
+- Mock SDK call — output maps correctly, tools and permissions are set
+- Hook fires for each tool call
+- Import without SDK installed — descriptive ImportError
 
 **Depends on:** 2

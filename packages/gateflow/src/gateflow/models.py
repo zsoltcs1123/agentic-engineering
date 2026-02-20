@@ -4,6 +4,10 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
+class EngineError(Exception):
+    pass
+
+
 @dataclass
 class EngineResult:
     output: str
