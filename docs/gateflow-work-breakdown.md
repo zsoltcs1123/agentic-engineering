@@ -4,53 +4,53 @@
 
 Build Gateflow — a domain-agnostic, code-based workflow orchestrator on LangGraph — from placeholder package to working system, then extend with advanced features.
 
-| #   | Task                                           | Phase | Depends On     | Status  |
-| --- | ---------------------------------------------- | ----- | -------------- | ------- |
-| 1   | Define WorkflowState and base models           | MVP   | None           | DONE    |
-| 2   | Define ExecutionEngine protocol                | MVP   | 1              | DONE    |
-| 3   | Implement raw LLM engine                       | MVP   | 2              | PENDING |
-| 4   | Implement DomainPack loader                    | MVP   | 2              | PENDING |
-| 5   | Build dynamic graph constructor                | MVP   | 1, 4           | PENDING |
-| 6   | Implement make_node and prompt assembly        | MVP   | 3, 5           | PENDING |
-| 7   | Add SQLite checkpointer                        | MVP   | 5              | PENDING |
-| 8   | Implement Cursor CLI engine                    | MVP   | 2              | PENDING |
-| 9   | Implement Cursor Cloud API engine              | MVP   | 2              | PENDING |
-| 10  | Create software-dev domain pack                | MVP   | 4              | PENDING |
+| #   | Task                                           | Phase | Depends On      | Status  |
+| --- | ---------------------------------------------- | ----- | --------------- | ------- |
+| 1   | Define WorkflowState and base models           | MVP   | None            | DONE    |
+| 2   | Define ExecutionEngine protocol                | MVP   | 1               | DONE    |
+| 3   | Implement raw LLM engine                       | MVP   | 2               | PENDING |
+| 4   | Implement DomainPack loader                    | MVP   | 2               | PENDING |
+| 5   | Build dynamic graph constructor                | MVP   | 1, 4            | PENDING |
+| 6   | Implement make_node and prompt assembly        | MVP   | 3, 5            | PENDING |
+| 7   | Add SQLite checkpointer                        | MVP   | 5               | PENDING |
+| 8   | Implement Cursor CLI engine                    | MVP   | 2               | PENDING |
+| 9   | Implement Cursor Cloud API engine              | MVP   | 2               | PENDING |
+| 10  | Create software-dev domain pack                | MVP   | 4               | PENDING |
 | 11  | End-to-end integration test                    | MVP   | 6, 7, 8, 9, 10 | PENDING |
-| 12  | Add structured observability and tracing       | v1    | 11             | PENDING |
-| 13  | Add trust levels and interrupt configuration   | v1    | 11             | PENDING |
-| 14  | Add parallel execution and resource management | v1    | 11             | PENDING |
-| 15  | Build CLI                                      | v1    | 11             | PENDING |
-| 16  | Implement gate failure retry loops             | v1    | 11             | PENDING |
-| 17  | Add per-step context strategy                  | v1    | 11             | PENDING |
-| 18  | Implement Claude Agent SDK engine              | v1    | 2              | PENDING |
+| 12  | Add structured observability and tracing       | v1    | 11              | PENDING |
+| 13  | Add trust levels and interrupt configuration   | v1    | 11              | PENDING |
+| 14  | Add parallel execution and resource management | v1    | 11              | PENDING |
+| 15  | Build CLI                                      | v1    | 11              | PENDING |
+| 16  | Implement gate failure retry loops             | v1    | 11              | PENDING |
+| 17  | Add per-step context strategy                  | v1    | 11              | PENDING |
+| 18  | Implement Claude Agent SDK engine              | v1    | 2               | PENDING |
 
 ## Tasks
 
 ### 1. Define WorkflowState and base models
 
-Define the core data structures that flow through the graph: the state TypedDict, structured output models, and the engine result container. These are the foundation everything else imports.
+Define the core data structures that flow through the graph: the workflow state, structured output models, and the engine result container. These are the foundation everything else imports.
 
 **Steps:**
 
-1. Add `langgraph` and `pydantic` as dependencies
-2. Define `WorkflowState` as a LangGraph-compatible state type with the fields described in the architecture doc (task_id, task_description, working_directory, status, plan, review_result, verification_result, trace, domain_data, etc.)
-3. Define the structured output models: `EngineResult` (output, tool_calls, token_usage, duration), `NodeOutput` (reasoning, assumptions, confidence, blind_spots, output), and `GateDecision` (verdict, reasoning, evidence, blind_spots, issues) — with appropriate validation constraints
+1. Add langgraph and pydantic as dependencies
+2. Define WorkflowState as a LangGraph-compatible state type with fields for task identity, description, working directory, status, plan, review result, verification result, trace, and domain data
+3. Define structured output models — EngineResult with output, tool calls, token usage, and duration; NodeOutput with reasoning, assumptions, confidence, blind spots, and output; GateDecision with verdict, reasoning, evidence, blind spots, and issues — with appropriate validation constraints
 4. Export the public API from the package root
 5. Write unit tests for model validation
 
 **Acceptance criteria:**
 
-- `WorkflowState` is importable and usable as a LangGraph state type
+- WorkflowState is importable and usable as a LangGraph state type
 - Pydantic models enforce their constraints (verdict literals, confidence bounds)
-- All types are exported from `gateflow` package root
+- All types are exported from the package root
 
-**Verification:**
+**Verification scenarios:**
 
-- Instantiate `WorkflowState` with all required fields, use it as a LangGraph state annotation — no errors
-- `GateDecision` rejects invalid verdict values
-- `NodeOutput` rejects out-of-range confidence
-- `EngineResult` populates sensible defaults for optional fields
+- Instantiate WorkflowState with all required fields, use as a LangGraph state annotation — no errors
+- GateDecision with invalid verdict value — rejected by validation
+- NodeOutput with out-of-range confidence — rejected by validation
+- EngineResult with no optional fields provided — sensible defaults populated
 
 **Depends on:** None
 
@@ -58,26 +58,26 @@ Define the core data structures that flow through the graph: the state TypedDict
 
 ### 2. Define ExecutionEngine protocol
 
-Create the protocol that all execution engines must implement. This is the contract between the orchestrator and any backend. See the architecture doc for the interface signature.
+Create the protocol that all execution engines must implement. This is the contract between the orchestrator and any backend.
 
 **Steps:**
 
-1. Define the `ExecutionEngine` protocol with a `run` method returning `EngineResult`
+1. Define the ExecutionEngine protocol with a run method returning EngineResult
 2. Define a permission mode type for the permission_mode parameter
 3. Export from package root
 4. Write a unit test verifying protocol conformance at runtime
 
 **Acceptance criteria:**
 
-- `ExecutionEngine` is a runtime-checkable `Protocol`
-- A class implementing `run` is recognized as conforming
-- mypy passes on conforming implementations
+- ExecutionEngine is a runtime-checkable protocol
+- A class implementing run is recognized as conforming
+- Static type checking passes on conforming implementations
 
-**Verification:**
+**Verification scenarios:**
 
-- A conforming class passes `isinstance` check
-- A non-conforming class fails `isinstance` check
-- mypy catches type mismatches
+- Conforming class — passes isinstance check
+- Non-conforming class (missing run method) — fails isinstance check
+- Conforming class with wrong return type — static type checker catches mismatch
 
 **Depends on:** 1
 
@@ -91,21 +91,21 @@ Build the simplest engine: a direct Anthropic API call with no agent tools. Used
 
 1. Implement an engine that calls the Anthropic messages API directly
 2. Accept model name and max_tokens as configuration with sensible defaults
-3. Map prompt to user message, parse response into `EngineResult`
+3. Map prompt to user message, parse response into EngineResult
 4. Handle API errors (rate limit, auth, timeout) with clear error messages
 5. Write unit tests using a mocked Anthropic client
 
 **Acceptance criteria:**
 
-- Conforms to `ExecutionEngine` protocol
-- Prompt is sent as a user message, response text lands in `EngineResult.output`
-- Token usage from API response is captured
-- API errors raise descriptive exceptions, not raw httpx errors
+- Conforms to ExecutionEngine protocol
+- Prompt is sent as a user message, response text lands in EngineResult output
+- Token usage from the API response is captured
+- API errors raise descriptive exceptions, not raw HTTP errors
 
-**Verification:**
+**Verification scenarios:**
 
-- Mock client returning a valid response — output and token_usage match
-- Mock client raising a rate limit error — engine raises a descriptive error
+- Mock client returning valid response — output and token_usage match expected values
+- Mock client raising rate limit error — engine raises a descriptive error
 - Empty prompt — engine sends the request without client-side rejection
 
 **Depends on:** 2
@@ -114,7 +114,7 @@ Build the simplest engine: a direct Anthropic API call with no agent tools. Used
 
 ### 4. Implement DomainPack loader
 
-Build the component that reads a domain directory (domain.json, prompts/, rules/) and provides prompt assembly and engine resolution. See the architecture doc for structure and behavior.
+Build the component that reads a domain directory and provides prompt assembly, engine resolution, and step ordering.
 
 **Steps:**
 
@@ -127,15 +127,15 @@ Build the component that reads a domain directory (domain.json, prompts/, rules/
 **Acceptance criteria:**
 
 - Loading raises clear errors for missing or invalid config
-- Prompt assembly concatenates base prompt + applicable rules
+- Prompt assembly concatenates base prompt and applicable rules
 - Engine resolution returns override when configured, default otherwise
-- Step list returns the ordered steps from config
+- Step list returns ordered steps from config
 
-**Verification:**
+**Verification scenarios:**
 
-- Load from a directory missing config — raises clear error
-- Load valid pack, build prompt for a step with rules — returned string contains base prompt and rule texts
-- Engine resolution returns override for overridden step, default for non-overridden step
+- Directory missing config file — raises clear error naming the missing file
+- Valid pack, prompt for a step with rules — returned string contains base prompt and rule texts
+- Engine resolution for overridden step — returns override; for non-overridden step — returns default
 
 **Depends on:** 2
 
@@ -143,26 +143,25 @@ Build the component that reads a domain directory (domain.json, prompts/, rules/
 
 ### 5. Build dynamic graph constructor
 
-Implement the function that reads step definitions from a DomainPack and constructs a LangGraph StateGraph with nodes, edges, and conditional gate edges. See the architecture doc for the graph construction pattern.
+Implement the function that reads step definitions from a DomainPack and constructs a LangGraph StateGraph with nodes, edges, and conditional gate edges.
 
 **Steps:**
 
-1. Implement a function that takes a DomainPack (and supporting config) and returns a compiled LangGraph graph
+1. Implement a function that takes a DomainPack and supporting config and returns a compiled LangGraph graph
 2. Add a node per step, wire sequential edges for non-gate steps and conditional edges for gate steps
 3. Gate steps route to the next step on PASS and to END on ISSUES
-4. Set entry/terminal points
+4. Set entry and terminal points
 5. Write unit tests verifying node count, edge topology, and gate routing
 
 **Acceptance criteria:**
 
 - Returns a compiled graph with one node per step
-- Gate steps have conditional edges (PASS → next, ISSUES → END)
-- Non-gate steps have unconditional edges to the next step
+- Gate steps have conditional edges; non-gate steps have unconditional edges
 - Graph compiles without errors for valid domain config
 
-**Verification:**
+**Verification scenarios:**
 
-- 3-step domain with a gate step — gate has conditional edges
+- 3-step domain with one gate step — gate node has conditional edges, others have unconditional edges
 - 1-step domain — graph has a single node with edge to END
 - Two consecutive gate steps — both have conditional edges wired correctly
 
@@ -177,24 +176,24 @@ Build the node factory that creates the async function each graph node executes:
 **Steps:**
 
 1. Implement a factory that returns an async node function for a given step
-2. Implement state injection into the prompt (at minimum: task_description, plan, working_directory, domain_data)
+2. Implement state injection into the prompt (task description, plan, working directory, domain data at minimum)
 3. Implement state update after engine execution: write output to the appropriate state field, append to trace
-4. For gate steps, parse engine output into a `GateDecision` and write the verdict to state
+4. For gate steps, parse engine output into a GateDecision and write the verdict to state
 5. Write unit tests with a mock engine verifying prompt assembly and state updates
 
 **Acceptance criteria:**
 
-- Node calls the correct engine with assembled prompt and step's tool/permission config
+- Node calls the correct engine with assembled prompt and the step's tool/permission config
 - State is updated with engine output under the correct field
 - Gate nodes parse output into GateDecision and the verdict is available for routing
 - Trace accumulates an entry per executed step
 
-**Verification:**
+**Verification scenarios:**
 
 - Mock engine run — prompt contains base prompt text and injected state fields
 - Gate node with PASS verdict — state reflects parsed decision, routing returns pass
 - Gate node with ISSUES verdict — state stores issues, routing returns issues
-- Execute 3 nodes — trace has 3 entries in order
+- Execute 3 nodes sequentially — trace has 3 entries in order
 
 **Depends on:** 3, 5
 
@@ -213,13 +212,13 @@ Configure LangGraph's built-in async SQLite checkpointer so workflow state persi
 
 **Acceptance criteria:**
 
-- Workflow state survives process restart — resuming a thread ID continues from the last completed step
+- Workflow state survives process restart — resuming a thread continues from the last completed step
 - Checkpoint database is created at the specified path
 - Graph builder accepts and uses the checkpointer
 
-**Verification:**
+**Verification scenarios:**
 
-- Run to completion — checkpoint DB file exists and is non-empty
+- Run to completion — checkpoint database file exists and is non-empty
 - Interrupt after step 2 of 4, resume with same thread — execution continues from step 3
 - Resume with non-existent thread — starts from the beginning
 
@@ -229,28 +228,28 @@ Configure LangGraph's built-in async SQLite checkpointer so workflow state persi
 
 ### 8. Implement Cursor CLI engine
 
-Build the subprocess-based engine that invokes the Cursor CLI agent with JSON output, mapping allowed_tools and permission_mode to CLI flags. See the architecture doc for the CLI invocation pattern.
+Build the subprocess-based engine that invokes the Cursor CLI agent with JSON output, mapping allowed tools and permission mode to CLI flags.
 
 **Steps:**
 
 1. Implement an engine that spawns the Cursor CLI as a subprocess
 2. Map permission_mode to appropriate CLI flags
-3. Parse JSON output into `EngineResult`, handle non-zero exit codes
+3. Parse JSON output into EngineResult, handle non-zero exit codes
 4. Accept configurable path for non-standard Cursor installations
 5. Write unit tests mocking the subprocess
 
 **Acceptance criteria:**
 
-- Conforms to `ExecutionEngine` protocol
+- Conforms to ExecutionEngine protocol
 - Subprocess is invoked with correct arguments for JSON output
 - Permission mode flags are applied correctly
 - Non-zero exit codes and malformed JSON produce descriptive errors
 
-**Verification:**
+**Verification scenarios:**
 
-- Mock subprocess returning valid JSON — output matches
-- Permission mode "acceptEdits" — correct flag is present; default — flag is absent
-- Non-zero exit code — descriptive error with stderr content
+- Mock subprocess returning valid JSON — output matches expected EngineResult
+- Permission mode "acceptEdits" — correct flag present; default mode — flag absent
+- Non-zero exit code — descriptive error including stderr content
 
 **Depends on:** 2
 
@@ -258,28 +257,28 @@ Build the subprocess-based engine that invokes the Cursor CLI agent with JSON ou
 
 ### 9. Implement Cursor Cloud API engine
 
-Build the REST-based engine that creates remote Cursor agents and polls until completion. See the architecture doc for the API pattern.
+Build the REST-based engine that creates remote Cursor agents and polls until completion.
 
 **Steps:**
 
 1. Implement an engine that creates a remote Cursor agent via REST API
 2. Implement polling with configurable interval, timeout, and backoff
-3. Map working_directory to a branch name
-4. Map terminal states to `EngineResult`
+3. Map working directory to a branch name
+4. Map terminal states to EngineResult
 5. Write unit tests mocking HTTP calls
 
 **Acceptance criteria:**
 
-- Conforms to `ExecutionEngine` protocol
+- Conforms to ExecutionEngine protocol
 - Agent creation sends repo, branch, and prompt
 - Polling respects timeout and backoff configuration
-- Terminal states (success, failure) correctly map to `EngineResult`
+- Terminal states correctly map to EngineResult
 
-**Verification:**
+**Verification scenarios:**
 
-- Mock: create returns agent ID, poll returns completed — output matches
-- Mock: poll never reaches terminal state within timeout — timeout error
-- Mock: create returns 401 — auth error with actionable message
+- Mock create returns agent ID, poll returns completed — output matches expected EngineResult
+- Poll never reaches terminal state within timeout — timeout error raised
+- Create returns 401 — auth error with actionable message
 
 **Depends on:** 2
 
@@ -287,27 +286,27 @@ Build the REST-based engine that creates remote Cursor agents and polls until co
 
 ### 10. Create software-dev domain pack
 
-Build the first domain pack for software development, extracting prompts from the existing `.agents/` skills and configuring engines per step.
+Build the first domain pack for software development, extracting prompts from the existing reference skills and configuring engines per step.
 
 **Steps:**
 
-1. Create the domain pack directory with a config file defining steps (plan, execute, review, verify, document, finalize), engine config, tool bindings, and rule assignments
-2. Extract LLM-facing prompts from `.agents/skills/workflow/` — strip orchestration logic, keep only what the LLM needs
-3. Review and verify prompts must instruct the LLM to produce output parseable as a gate decision
-4. Copy relevant rules from `.agents/rules/`
+1. Create the domain pack directory with a config defining steps (plan, execute, review, verify, document, finalize), engine config, tool bindings, and rule assignments
+2. Extract LLM-facing prompts from the existing workflow skills — strip orchestration logic, keep only what the LLM needs
+3. Ensure review and verify prompts instruct the LLM to produce output parseable as a gate decision
+4. Copy relevant rules from the existing rules directory
 
 **Acceptance criteria:**
 
-- DomainPack loads the pack successfully
+- DomainPack loader loads the pack successfully
 - Each step has a corresponding prompt file
 - Review and verify prompts produce gate-decision-compatible output
-- Engine config maps reasoning steps to raw-llm, execution to cursor-cli
+- Engine config maps reasoning steps to raw LLM, execution steps to Cursor CLI
 
-**Verification:**
+**Verification scenarios:**
 
-- Load succeeds, step list returns expected steps in order
-- Review prompt contains gate decision output format instructions
-- Engine resolution returns correct engine per step
+- Load succeeds — step list returns expected steps in order
+- Review prompt content — contains gate decision output format instructions
+- Engine resolution per step — reasoning steps resolve to raw LLM engine, execution steps to CLI engine
 
 **Depends on:** 4
 
@@ -326,16 +325,21 @@ Validate the full orchestrator with the software-dev domain pack: state transiti
 
 **Acceptance criteria:**
 
-- Graph executes all steps when all gates pass, final state is complete
+- Graph executes all steps when all gates pass, producing a complete final state
 - Graph halts correctly when a gate returns ISSUES
 - Resumed thread skips already-completed steps
 - Orchestrator code is domain-agnostic
 
-**Verification:**
+**Verification scenarios:**
 
 - All gates pass — final status is "completed", all state fields populated
-- ISSUES at review — graph halts, steps after review are not executed
+- ISSUES at review gate — graph halts, steps after review are not executed
 - Interrupt and resume — execution continues from correct step, earlier results preserved
+
+**Validation scenarios:**
+
+- Run the full orchestrator with mock engines against the software-dev domain pack, verify final state is "completed" and trace contains all steps — Automation: full
+- Interrupt mid-workflow, resume with same thread ID, verify continuation from correct step — Automation: full
 
 **Depends on:** 6, 7, 8, 9, 10
 
@@ -343,27 +347,27 @@ Validate the full orchestrator with the software-dev domain pack: state transiti
 
 ### 12. Add structured observability and tracing
 
-Add step-level logging, forced reasoning enforcement, and per-run trace artifact output.
+Add step-level logging, reasoning enforcement, and per-run trace artifact output.
 
 **Steps:**
 
-1. Implement step-level structured logging: emit a log record on node entry/exit with step name, duration, token usage
-2. Enforce the `NodeOutput` schema on engine results — validate that reasoning fields are present
+1. Implement step-level structured logging: emit a log record on node entry/exit with step name, duration, and token usage
+2. Enforce the NodeOutput schema on engine results — validate that reasoning fields are present
 3. Implement a trace writer: after graph completion, serialize the full trace to a JSON file with task ID, timestamps, per-step metrics, and gate decisions
 4. Write unit tests for trace serialization and reasoning validation
 
 **Acceptance criteria:**
 
-- Each step execution emits structured log records (not just print statements)
+- Each step execution emits structured log records
 - Missing reasoning fields produce a warning or error (configurable)
 - Completed workflow produces a JSON trace file
 - Trace schema is domain-agnostic
 
-**Verification:**
+**Verification scenarios:**
 
-- 3-step graph — 3 structured log records with step name, duration, token usage
-- Engine output missing reasoning with enforcement enabled — warning or error
-- Completed workflow — JSON trace file with task ID, per-step metrics, gate decisions
+- 3-step graph run — 3 structured log records emitted with step name, duration, and token usage
+- Engine output missing reasoning fields with enforcement enabled — warning or error raised
+- Completed workflow — JSON trace file contains task ID, per-step metrics, and gate decisions
 
 **Depends on:** 11
 
@@ -371,13 +375,13 @@ Add step-level logging, forced reasoning enforcement, and per-run trace artifact
 
 ### 13. Add trust levels and interrupt configuration
 
-Implement configurable interrupt points based on trust levels, with approve/modify/reject actions at each interrupt. See the architecture doc for trust level definitions.
+Implement configurable interrupt points based on trust levels, with approve/modify/reject actions at each interrupt.
 
 **Steps:**
 
 1. Define trust levels (autonomous, gates_only, review_all, cautious) mapping to interrupt-before step sets
 2. Support per-node overrides that add or remove interrupts
-3. Wire into the graph builder via LangGraph's `interrupt_before` parameter
+3. Wire into the graph builder via LangGraph's interrupt_before parameter
 4. Allow callers to modify state on resume (edit plan, override gate verdict)
 5. Write integration tests per trust level
 
@@ -385,14 +389,14 @@ Implement configurable interrupt points based on trust levels, with approve/modi
 
 - Each trust level produces the correct set of interrupt points
 - Per-node overrides add or remove interrupts
-- Graph pauses at interrupt points and resumes with (optionally modified) state
-- Autonomous produces zero interrupts
+- Graph pauses at interrupt points and resumes with optionally modified state
+- Autonomous mode produces zero interrupts
 
-**Verification:**
+**Verification scenarios:**
 
-- Autonomous — empty interrupt list
-- Gates_only — interrupts at review and verify, not plan or execute
-- Gates_only + per-node override adding plan — plan is also interrupted
+- Autonomous trust level — empty interrupt list
+- Gates_only — interrupts at review and verify steps only
+- Gates_only with per-node override adding plan — plan step is also interrupted
 - Resume with modified state — next step receives the modification
 
 **Depends on:** 11
@@ -405,7 +409,7 @@ Enable running multiple tasks concurrently with workspace isolation and resource
 
 **Steps:**
 
-1. Implement batch execution using asyncio — each task gets its own thread and workspace
+1. Implement batch execution — each task gets its own thread and workspace
 2. Add semaphore-based LLM concurrency limiting
 3. Add per-task and global token budget with circuit breaker
 4. Define a workspace isolation hook in domain config — orchestrator calls a domain-provided callable for setup/teardown
@@ -418,11 +422,11 @@ Enable running multiple tasks concurrently with workspace isolation and resource
 - Token budget halts a task when exceeded without affecting others
 - Workspace isolation hook is called before task execution
 
-**Verification:**
+**Verification scenarios:**
 
 - 3 tasks with concurrency limit 2 — at most 2 engine runs active simultaneously
-- Token budget exceeded — task halts, others continue
-- Each parallel task gets its own thread and independent checkpoint
+- Token budget exceeded mid-task — that task halts, others continue unaffected
+- Each parallel task — gets its own thread and independent checkpoint
 
 **Depends on:** 11
 
@@ -430,27 +434,33 @@ Enable running multiple tasks concurrently with workspace isolation and resource
 
 ### 15. Build CLI
 
-Ship a command-line interface for running workflows from the terminal. See the architecture doc for the intended commands.
+Ship a command-line interface for running workflows from the terminal.
 
 **Steps:**
 
 1. Add a CLI framework dependency
-2. Implement commands: `run` (execute workflow), `status` (show current state), `list` (enumerate tasks), `trace` (show trace)
-3. Support a `--domain` flag to override the domain pack path
-4. Register the CLI entry point in pyproject.toml
+2. Implement commands: run (execute workflow), status (show current state), list (enumerate tasks), trace (show trace)
+3. Support a --domain flag to override the domain pack path
+4. Register the CLI entry point in the package config
 
 **Acceptance criteria:**
 
-- `run` loads a domain pack, executes the workflow, prints final status
-- `status` shows current step and state summary for a task
-- `list` shows all known tasks
-- `--domain` overrides the domain pack path
+- run command loads a domain pack, executes the workflow, and prints final status
+- status command shows current step and state summary for a task
+- list command shows all known tasks
+- --domain flag overrides the domain pack path
 
-**Verification:**
+**Verification scenarios:**
 
-- Run command loads domain, executes, prints status
-- Status command with existing checkpoint shows state
-- List command with multiple tasks shows all
+- Run command with valid domain pack — workflow executes and final status is printed
+- Status command with existing checkpoint — shows current step and state
+- List command with multiple tasks — all tasks displayed
+
+**Validation scenarios:**
+
+- Install the package, invoke the run command with the software-dev domain pack and mock engines, verify output shows completion status — Automation: full
+- Invoke the status command for an in-progress task, verify it displays current step — Automation: full
+- Invoke the list command with multiple tasks present, verify all are listed — Automation: full
 
 **Depends on:** 11
 
@@ -458,7 +468,7 @@ Ship a command-line interface for running workflows from the terminal. See the a
 
 ### 16. Implement gate failure retry loops
 
-Add configurable automatic retries when a gate returns ISSUES, re-invoking the target step with issues appended to the prompt. See the architecture doc's open design questions for the retry pattern.
+Add configurable automatic retries when a gate returns ISSUES, re-invoking the target step with issues appended to the prompt.
 
 **Steps:**
 
@@ -475,12 +485,12 @@ Add configurable automatic retries when a gate returns ISSUES, re-invoking the t
 - Retried step receives the previous gate's issues in its prompt
 - Steps without retry config behave as before (immediate halt)
 
-**Verification:**
+**Verification scenarios:**
 
-- Gate fails with retries configured — re-invokes target with issues, up to max
+- Gate fails with retries configured — re-invokes target step with issues appended, up to max retries
 - Retries exhausted — routes to END
-- No retry config — immediate halt (backward compatible)
-- Retry count survives checkpoint resume
+- No retry config on step — immediate halt on gate failure (backward compatible)
+- Retry count survives checkpoint resume — resumed task continues with correct count
 
 **Depends on:** 11
 
@@ -488,7 +498,7 @@ Add configurable automatic retries when a gate returns ISSUES, re-invoking the t
 
 ### 17. Add per-step context strategy
 
-Allow each step to declare whether it explores context via tools or receives pre-injected context from the orchestrator. See the architecture doc's open design questions.
+Allow each step to declare whether it explores context via tools or receives pre-injected context from the orchestrator.
 
 **Steps:**
 
@@ -505,10 +515,10 @@ Allow each step to declare whether it explores context via tools or receives pre
 - Strategy is configurable per step without code changes
 - Default is explore
 
-**Verification:**
+**Verification scenarios:**
 
-- Inject with specified fields — prompt contains those state values
-- Explore — prompt contains only the base prompt, no injected state
+- Inject strategy with specified fields — prompt contains those state values
+- Explore strategy — prompt contains only the base prompt, no injected state
 - No strategy configured — defaults to explore behavior
 
 **Depends on:** 11
@@ -517,27 +527,27 @@ Allow each step to declare whether it explores context via tools or receives pre
 
 ### 18. Implement Claude Agent SDK engine
 
-Build the in-process engine wrapping the Claude Agent SDK with hook-based observability and tool restrictions. See the architecture doc for the SDK integration pattern.
+Build the in-process engine wrapping the Claude Agent SDK with hook-based observability and tool restrictions.
 
 **Steps:**
 
 1. Add the Claude Agent SDK as an optional dependency
-2. Implement an engine that calls the SDK, mapping allowed_tools and permission_mode to SDK options
+2. Implement an engine that calls the SDK, mapping allowed tools and permission mode to SDK options
 3. Wire a pre-tool-use hook for logging tool calls
 4. Ensure the engine is importable only when the optional dependency is installed (graceful error otherwise)
 5. Write unit tests mocking the SDK
 
 **Acceptance criteria:**
 
-- Conforms to `ExecutionEngine` protocol
-- allowed_tools and permission_mode map correctly to SDK parameters
+- Conforms to ExecutionEngine protocol
+- Allowed tools and permission mode map correctly to SDK parameters
 - Pre-tool-use hook logs tool calls
 - Graceful import error when SDK is not installed
 
-**Verification:**
+**Verification scenarios:**
 
-- Mock SDK call — output maps correctly, tools and permissions are set
-- Hook fires for each tool call
-- Import without SDK installed — descriptive ImportError
+- Mock SDK call — output maps correctly to EngineResult, tools and permissions are set
+- Tool call during execution — hook fires for each tool call
+- Import without SDK installed — descriptive ImportError raised
 
 **Depends on:** 2
