@@ -1,5 +1,6 @@
 from typing import Literal, Protocol, runtime_checkable
 
+from gateflow.engines.cursor_cli import CursorCLIEngine
 from gateflow.engines.raw_llm import RawLLMEngine
 from gateflow.models import EngineError, EngineResult
 
@@ -18,6 +19,7 @@ class ExecutionEngine(Protocol):
 
 
 __all__ = [
+    "CursorCLIEngine",
     "EngineError",
     "ExecutionEngine",
     "PermissionMode",
