@@ -1,0 +1,35 @@
+{
+  "name": "software-dev",
+  "steps": [
+    { "name": "plan", "prompt": "plan", "gate": false, "readonly": true },
+    {
+      "name": "execute",
+      "prompt": "execute",
+      "gate": false,
+      "readonly": false
+    },
+    { "name": "review", "prompt": "review", "gate": true, "readonly": true },
+    { "name": "verify", "prompt": "verify", "gate": true, "readonly": true },
+    {
+      "name": "document",
+      "prompt": "document",
+      "gate": false,
+      "readonly": false
+    },
+    {
+      "name": "finalize",
+      "prompt": "finalize",
+      "gate": false,
+      "readonly": false
+    }
+  ],
+  "engine": {
+    "default": "cursor-cli"
+  },
+  "rules": {
+    "plan": ["python", "python-testing"],
+    "execute": ["python", "python-testing"],
+    "review": ["python", "python-testing"],
+    "verify": ["python-testing"]
+  }
+}
