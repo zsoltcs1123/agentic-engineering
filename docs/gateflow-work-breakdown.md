@@ -11,8 +11,8 @@ Build Gateflow — a domain-agnostic, code-based workflow orchestrator on LangGr
 | 3   | Implement raw LLM engine                       | MVP   | 2              | DONE    |
 | 4   | Implement DomainPack loader                    | MVP   | 2              | DONE    |
 | 5   | Build dynamic graph constructor                | MVP   | 1, 4           | DONE    |
-| 6   | Implement make_node and prompt assembly        | MVP   | 3, 5           | PENDING |
-| 7   | Add SQLite checkpointer                        | MVP   | 5              | PENDING |
+| 6   | Implement make_node and prompt assembly        | MVP   | 3, 5           | DONE    |
+| 7   | Add SQLite checkpointer                        | MVP   | 5              | DONE    |
 | 8   | Implement Cursor CLI engine                    | MVP   | 2              | PENDING |
 | 9   | Implement Cursor Cloud API engine              | MVP   | 2              | PENDING |
 | 10  | Create software-dev domain pack                | MVP   | 4              | PENDING |

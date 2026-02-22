@@ -2,6 +2,7 @@
 
 __version__ = "0.1.0"
 
+from gateflow.checkpointer import create_checkpointer
 from gateflow.domain import DomainPack, DomainPackError, StepDefinition
 from gateflow.engines import EngineError, ExecutionEngine, PermissionMode, RawLLMEngine
 from gateflow.graph import build_graph
@@ -22,6 +23,7 @@ __all__ = [
     "StepDefinition",
     "WorkflowState",
     "build_graph",
+    "create_checkpointer",
     "inject_state",
     "make_node",
 ]

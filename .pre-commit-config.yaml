@@ -33,7 +33,7 @@ repos:
       - id: mypy
         args: [--config-file=mypy.ini]
         exclude: /tests/
-        additional_dependencies: [anthropic>=0.45, langgraph>=0.4, pydantic>=2.0, pytest, python-dotenv>=1.0]
+        additional_dependencies: [anthropic>=0.45, langgraph>=0.4, langgraph-checkpoint-sqlite>=2.0, pydantic>=2.0, pytest, python-dotenv>=1.0]
 
   - repo: local
     hooks:
