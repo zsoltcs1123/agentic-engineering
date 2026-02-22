@@ -13,5 +13,6 @@ class WorkflowState(TypedDict):
     plan: str
     review_result: str
     verification_result: str
+    gate_verdict: str
     trace: Annotated[list[dict[str, Any]], operator.add]
     domain_data: dict[str, Any]

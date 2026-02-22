@@ -2,9 +2,11 @@
 
 __version__ = "0.1.0"
 
-from gateflow.domain import DomainPack, DomainPackError
+from gateflow.domain import DomainPack, DomainPackError, StepDefinition
 from gateflow.engines import EngineError, ExecutionEngine, PermissionMode, RawLLMEngine
+from gateflow.graph import build_graph
 from gateflow.models import EngineResult, GateDecision, NodeOutput
+from gateflow.nodes import inject_state, make_node
 from gateflow.state import WorkflowState
 
 __all__ = [
@@ -17,5 +19,9 @@ __all__ = [
     "NodeOutput",
     "PermissionMode",
     "RawLLMEngine",
+    "StepDefinition",
     "WorkflowState",
+    "build_graph",
+    "inject_state",
+    "make_node",
 ]

@@ -4,26 +4,26 @@
 
 Build Gateflow — a domain-agnostic, code-based workflow orchestrator on LangGraph — from placeholder package to working system, then extend with advanced features.
 
-| #   | Task                                           | Phase | Depends On      | Status  |
-| --- | ---------------------------------------------- | ----- | --------------- | ------- |
-| 1   | Define WorkflowState and base models           | MVP   | None            | DONE    |
-| 2   | Define ExecutionEngine protocol                | MVP   | 1               | DONE    |
-| 3   | Implement raw LLM engine                       | MVP   | 2               | PENDING |
-| 4   | Implement DomainPack loader                    | MVP   | 2               | PENDING |
-| 5   | Build dynamic graph constructor                | MVP   | 1, 4            | PENDING |
-| 6   | Implement make_node and prompt assembly        | MVP   | 3, 5            | PENDING |
-| 7   | Add SQLite checkpointer                        | MVP   | 5               | PENDING |
-| 8   | Implement Cursor CLI engine                    | MVP   | 2               | PENDING |
-| 9   | Implement Cursor Cloud API engine              | MVP   | 2               | PENDING |
-| 10  | Create software-dev domain pack                | MVP   | 4               | PENDING |
+| #   | Task                                           | Phase | Depends On     | Status  |
+| --- | ---------------------------------------------- | ----- | -------------- | ------- |
+| 1   | Define WorkflowState and base models           | MVP   | None           | DONE    |
+| 2   | Define ExecutionEngine protocol                | MVP   | 1              | DONE    |
+| 3   | Implement raw LLM engine                       | MVP   | 2              | DONE    |
+| 4   | Implement DomainPack loader                    | MVP   | 2              | DONE    |
+| 5   | Build dynamic graph constructor                | MVP   | 1, 4           | DONE    |
+| 6   | Implement make_node and prompt assembly        | MVP   | 3, 5           | PENDING |
+| 7   | Add SQLite checkpointer                        | MVP   | 5              | PENDING |
+| 8   | Implement Cursor CLI engine                    | MVP   | 2              | PENDING |
+| 9   | Implement Cursor Cloud API engine              | MVP   | 2              | PENDING |
+| 10  | Create software-dev domain pack                | MVP   | 4              | PENDING |
 | 11  | End-to-end integration test                    | MVP   | 6, 7, 8, 9, 10 | PENDING |
-| 12  | Add structured observability and tracing       | v1    | 11              | PENDING |
-| 13  | Add trust levels and interrupt configuration   | v1    | 11              | PENDING |
-| 14  | Add parallel execution and resource management | v1    | 11              | PENDING |
-| 15  | Build CLI                                      | v1    | 11              | PENDING |
-| 16  | Implement gate failure retry loops             | v1    | 11              | PENDING |
-| 17  | Add per-step context strategy                  | v1    | 11              | PENDING |
-| 18  | Implement Claude Agent SDK engine              | v1    | 2               | PENDING |
+| 12  | Add structured observability and tracing       | v1    | 11             | PENDING |
+| 13  | Add trust levels and interrupt configuration   | v1    | 11             | PENDING |
+| 14  | Add parallel execution and resource management | v1    | 11             | PENDING |
+| 15  | Build CLI                                      | v1    | 11             | PENDING |
+| 16  | Implement gate failure retry loops             | v1    | 11             | PENDING |
+| 17  | Add per-step context strategy                  | v1    | 11             | PENDING |
+| 18  | Implement Claude Agent SDK engine              | v1    | 2              | PENDING |
 
 ## Tasks
 

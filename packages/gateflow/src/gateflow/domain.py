@@ -10,6 +10,14 @@ class DomainPackError(Exception):
     pass
 
 
+class StepDefinition(BaseModel):
+    name: str
+    prompt: str
+    tools: list[str] = Field(default_factory=list)
+    gate: bool = False
+    readonly: bool = False
+
+
 class EngineConfig(BaseModel):
     default: str
     overrides: dict[str, str] = Field(default_factory=dict)
@@ -17,7 +25,7 @@ class EngineConfig(BaseModel):
 
 class DomainConfig(BaseModel):
     name: str
-    steps: list[str] = Field(min_length=1)
+    steps: list[StepDefinition] = Field(min_length=1)
     engine: EngineConfig
     rules: dict[str, list[str]] = Field(default_factory=dict)
 
@@ -45,17 +53,18 @@ class DomainPack:
 
         prompts_dir = path / "prompts"
         for step in config.steps:
-            prompt_file = prompts_dir / f"{step}.md"
+            prompt_file = prompts_dir / f"{step.prompt}.md"
             if not prompt_file.exists():
-                raise DomainPackError(f"Missing prompt file for step '{step}': {prompt_file}")
+                raise DomainPackError(f"Missing prompt file for step '{step.name}': {prompt_file}")
 
         rules_dir = path / "rules"
-        for step, rule_names in config.rules.items():
+        for step_name, rule_names in config.rules.items():
             for rule_name in rule_names:
                 rule_file = rules_dir / f"{rule_name}.md"
                 if not rule_file.exists():
                     raise DomainPackError(
-                        f"Missing rule file '{rule_name}' referenced by step '{step}': {rule_file}"
+                        f"Missing rule file '{rule_name}' "
+                        f"referenced by step '{step_name}': {rule_file}"
                     )
 
         return DomainPack(path, config)
@@ -79,8 +88,12 @@ class DomainPack:
         return self._config.engine.overrides.get(step, self._config.engine.default)
 
     @property
-    def steps(self) -> list[str]:
+    def steps(self) -> list[StepDefinition]:
         return list(self._config.steps)
+
+    @property
+    def step_names(self) -> list[str]:
+        return [step.name for step in self._config.steps]
 
     @property
     def name(self) -> str:
