@@ -16,7 +16,7 @@ Build Gateflow — a domain-agnostic, code-based workflow orchestrator on LangGr
 | 8   | Implement Cursor CLI engine                    | MVP   | 2              | DONE    |
 | 9   | Implement Cursor Cloud API engine              | MVP   | 2              | DONE    |
 | 10  | Create software-dev domain pack                | MVP   | 4              | DONE    |
-| 11  | End-to-end integration test                    | MVP   | 6, 7, 8, 9, 10 | PENDING |
+| 11  | End-to-end integration test                    | MVP   | 6, 7, 8, 9, 10 | DONE    |
 | 12  | Add structured observability and tracing       | v1    | 11             | PENDING |
 | 13  | Add trust levels and interrupt configuration   | v1    | 11             | PENDING |
 | 14  | Add parallel execution and resource management | v1    | 11             | PENDING |
