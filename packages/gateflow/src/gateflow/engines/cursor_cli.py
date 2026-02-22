@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import shutil
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -78,7 +79,10 @@ class CursorCLIEngine:
         agent_path: str = "agent",
         model: str | None = None,
     ) -> None:
-        self._agent_path = agent_path
+        resolved = shutil.which(agent_path)
+        if resolved is None:
+            raise EngineError(f"Cursor CLI executable '{agent_path}' not found on PATH")
+        self._agent_path = resolved
         self._model = model
 
     def _build_args(

@@ -16,30 +16,36 @@ _STATE_FIELD_MAP: dict[str, str] = {
 }
 
 
-def inject_state(prompt: str, state: WorkflowState) -> str:
+def build_rule_mentions(step_name: str, domain: DomainPack) -> str:
+    mentions = [f"@gateflow-step-{step_name}"]
+    for rule_name in domain.rule_names_for_step(step_name):
+        mentions.append(f"@gateflow-rule-{rule_name}")
+    return " ".join(mentions)
+
+
+def build_task_context(state: WorkflowState) -> str:
     sections: list[str] = []
 
     task = state.get("task_description", "")
     if task:
-        sections.append(f"**Task:** {task}")
+        sections.append(f"Task: {task}")
 
     wd = state.get("working_directory", "")
     if wd:
-        sections.append(f"**Working Directory:** {wd}")
+        sections.append(f"Working directory: {wd}")
 
     plan = state.get("plan", "")
     if plan:
-        sections.append(f"**Plan:**\n{plan}")
+        sections.append(f"Plan:\n{plan}")
 
     domain_data = state.get("domain_data")
     if domain_data:
-        sections.append(f"**Domain Data:**\n{json.dumps(domain_data, indent=2)}")
+        sections.append(f"Context:\n{json.dumps(domain_data, indent=2)}")
 
     if not sections:
-        return prompt
+        return ""
 
-    context_block = "\n\n".join(sections)
-    return f"{prompt}\n\n---\n## Context\n\n{context_block}\n---"
+    return "\n\n".join(sections)
 
 
 def _state_field_for_step(step_name: str) -> str | None:
@@ -61,7 +67,11 @@ def _parse_gate_decision(output: str) -> GateDecision:
 
 
 def _update_state(
-    step: StepDefinition, result: EngineResult, state: WorkflowState
+    step: StepDefinition,
+    result: EngineResult,
+    state: WorkflowState,
+    *,
+    prompt: str = "",
 ) -> dict[str, Any]:
     update: dict[str, Any] = {"current_step": step.name}
 
@@ -81,7 +91,8 @@ def _update_state(
 
     trace_entry: dict[str, Any] = {
         "step": step.name,
-        "output": result.output[:200],
+        "prompt": prompt,
+        "output": result.output,
         "token_usage": result.token_usage,
         "duration_s": result.duration_s,
     }
@@ -96,8 +107,8 @@ def make_node(
     engine: ExecutionEngine,
 ) -> Callable[[WorkflowState], Awaitable[dict[str, Any]]]:
     async def node(state: WorkflowState) -> dict[str, Any]:
-        base_prompt = domain.build_prompt(step.prompt)
-        prompt = inject_state(base_prompt, state)
+        context = build_task_context(state)
+        prompt = context or step.name
         permission_mode: PermissionMode = "readonly" if step.readonly else "acceptEdits"
         result = await engine.run(
             prompt=prompt,
@@ -105,7 +116,7 @@ def make_node(
             allowed_tools=step.tools,
             permission_mode=permission_mode,
         )
-        return _update_state(step, result, state)
+        return _update_state(step, result, state, prompt=prompt)
 
     node.__name__ = step.name
     node.__qualname__ = step.name

@@ -8,6 +8,14 @@ import pytest
 from gateflow.engines import CursorCLIEngine, EngineError, ExecutionEngine
 
 
+@pytest.fixture(autouse=True)
+def _fake_which(monkeypatch):
+    monkeypatch.setattr(
+        "gateflow.engines.cursor_cli.shutil.which",
+        lambda p: p,
+    )
+
+
 def _ndjson(*events: dict) -> bytes:
     return "\n".join(json.dumps(e) for e in events).encode()
 
@@ -314,6 +322,16 @@ async def test_file_not_found_raises_engine_error():
             allowed_tools=[],
             permission_mode="default",
         )
+
+
+@pytest.mark.unit
+def test_which_returns_none_raises_engine_error(monkeypatch):
+    monkeypatch.setattr(
+        "gateflow.engines.cursor_cli.shutil.which",
+        lambda _p: None,
+    )
+    with pytest.raises(EngineError, match="not found on PATH"):
+        CursorCLIEngine(agent_path="nonexistent-binary")
 
 
 @pytest.mark.unit

@@ -19,8 +19,9 @@ from gateflow.engines import (
     RawLLMEngine,
 )
 from gateflow.graph import build_graph
+from gateflow.installer import install, uninstall
 from gateflow.models import EngineResult, GateDecision, NodeOutput
-from gateflow.nodes import inject_state, make_node
+from gateflow.nodes import build_rule_mentions, build_task_context, make_node
 from gateflow.state import WorkflowState
 
 __all__ = [
@@ -41,6 +42,9 @@ __all__ = [
     "WorkflowState",
     "build_graph",
     "create_checkpointer",
-    "inject_state",
+    "build_rule_mentions",
+    "build_task_context",
+    "install",
     "make_node",
+    "uninstall",
 ]

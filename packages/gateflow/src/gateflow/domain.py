@@ -116,6 +116,13 @@ class DomainPack:
     def name(self) -> str:
         return self._config.name
 
+    @property
+    def rules_mapping(self) -> dict[str, list[str]]:
+        return dict(self._config.rules)
+
+    def rule_names_for_step(self, step_name: str) -> list[str]:
+        return list(self._config.rules.get(step_name, []))
+
     def interrupt_after_steps(self) -> list[str]:
         cfg = self._config.interrupts
         base = _TRUST_LEVEL_STEPS[cfg.trust_level]

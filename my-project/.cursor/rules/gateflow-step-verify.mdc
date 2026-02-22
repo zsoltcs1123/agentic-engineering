@@ -1,0 +1,46 @@
+---
+description: Code Verification
+alwaysApply: false
+---
+
+# Code Verification
+
+Verify that the code changes match the acceptance criteria from the plan.
+
+## Procedure
+
+1. **Get criteria**: Extract acceptance criteria from the plan provided in context.
+2. **Get changes**: Examine all code changes made during implementation.
+3. **Verify**:
+   - Check every acceptance criterion is addressed
+   - Flag unplanned changes that lack justification
+   - Confirm the approach matches what the plan specified
+4. **Determine verdict**:
+   - **PASS**: All criteria met
+   - **ISSUES**: Missing items, unjustified unplanned changes, or problems found
+
+## Output Format
+
+You MUST output ONLY a JSON object matching this exact schema. No markdown, no explanation — just the JSON.
+
+```json
+{
+  "verdict": "PASS or ISSUES",
+  "reasoning": "Brief summary of the verification result",
+  "evidence": [
+    "Specific criterion checked and its result"
+  ],
+  "blind_spots": [
+    "Anything you could not verify"
+  ],
+  "issues": [
+    "Description of unmet criterion or problem (only if verdict is ISSUES, empty list if PASS)"
+  ]
+}
+```
+
+- `verdict`: Must be exactly `"PASS"` or `"ISSUES"`.
+- `reasoning`: One or two sentences summarizing whether the implementation matches the plan.
+- `evidence`: List of specific criteria checked and how they were verified.
+- `blind_spots`: List of things you could not fully verify (e.g., runtime behavior, integration with external systems).
+- `issues`: List of unmet criteria or problems. Empty list `[]` if verdict is PASS.

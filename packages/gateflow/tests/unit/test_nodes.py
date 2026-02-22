@@ -9,7 +9,7 @@ import pytest
 
 from gateflow.domain import DomainPack, StepDefinition
 from gateflow.models import EngineResult, GateDecision
-from gateflow.nodes import inject_state, make_node
+from gateflow.nodes import build_rule_mentions, build_task_context, make_node
 
 
 def _make_step(
@@ -80,46 +80,110 @@ def _base_state(**overrides: Any) -> dict[str, Any]:
 
 
 @pytest.mark.unit
-class TestInjectState:
-    def test_injects_task_description_and_working_directory(self) -> None:
-        state = _base_state()
-        result = inject_state("Base prompt.", state)
+class TestBuildRuleMentions:
+    def test_step_mention_always_present(self, tmp_path: Path) -> None:
+        steps = [{"name": "plan", "prompt": "plan"}]
+        _write_domain_pack(tmp_path / "pack", steps)
+        domain = DomainPack.load(tmp_path / "pack")
 
-        assert "Base prompt." in result
+        result = build_rule_mentions("plan", domain)
+
+        assert result == "@gateflow-step-plan"
+
+    def test_includes_mapped_rules(self, tmp_path: Path) -> None:
+        steps = [{"name": "plan", "prompt": "plan"}]
+        _write_domain_pack(
+            tmp_path / "pack",
+            steps,
+            rules={"plan": ["python", "testing"]},
+            rule_files={"python": "# Python", "testing": "# Testing"},
+        )
+        domain = DomainPack.load(tmp_path / "pack")
+
+        result = build_rule_mentions("plan", domain)
+
+        assert "@gateflow-step-plan" in result
+        assert "@gateflow-rule-python" in result
+        assert "@gateflow-rule-testing" in result
+
+    def test_step_without_rules_has_no_rule_mentions(self, tmp_path: Path) -> None:
+        steps = [{"name": "execute", "prompt": "execute"}]
+        _write_domain_pack(
+            tmp_path / "pack",
+            steps,
+            rules={"plan": ["python"]},
+            rule_files={"python": "# Python"},
+        )
+        domain = DomainPack.load(tmp_path / "pack")
+
+        result = build_rule_mentions("execute", domain)
+
+        assert result == "@gateflow-step-execute"
+        assert "rule" not in result
+
+
+@pytest.mark.unit
+class TestBuildTaskContext:
+    def test_includes_task_description_and_working_directory(self) -> None:
+        state = _base_state()
+        result = build_task_context(state)
+
         assert "Implement feature X" in result
         assert "/workspace" in result
 
-    def test_injects_plan(self) -> None:
+    def test_includes_plan(self) -> None:
         state = _base_state()
-        result = inject_state("Base prompt.", state)
+        result = build_task_context(state)
 
         assert "Step 1: do A" in result
 
-    def test_injects_domain_data(self) -> None:
+    def test_includes_domain_data(self) -> None:
         state = _base_state(domain_data={"key": "value"})
-        result = inject_state("Base prompt.", state)
+        result = build_task_context(state)
 
         assert '"key": "value"' in result
 
     def test_skips_empty_fields(self) -> None:
         state = _base_state(task_description="", plan="", domain_data={})
-        result = inject_state("Base prompt.", state)
+        result = build_task_context(state)
 
-        assert "**Task:**" not in result
-        assert "**Plan:**" not in result
-        assert "**Domain Data:**" not in result
+        assert "Plan:" not in result
+        assert "Context:" not in result
 
-    def test_returns_prompt_unchanged_when_all_fields_empty(self) -> None:
+    def test_returns_empty_when_all_fields_empty(self) -> None:
         state = _base_state(task_description="", plan="", working_directory="", domain_data={})
-        result = inject_state("Base prompt.", state)
+        result = build_task_context(state)
 
-        assert result == "Base prompt."
+        assert result == ""
 
 
 @pytest.mark.unit
 class TestMakeNodePromptAssembly:
     @pytest.mark.asyncio
-    async def test_prompt_contains_base_text_and_injected_state(self, tmp_path: Path) -> None:
+    async def test_prompt_contains_task_context_only(self, tmp_path: Path) -> None:
+        steps = [{"name": "plan", "prompt": "plan"}]
+        _write_domain_pack(
+            tmp_path / "pack",
+            steps,
+            rules={"plan": ["python"]},
+            rule_files={"python": "# Python"},
+        )
+        domain = DomainPack.load(tmp_path / "pack")
+        engine = _make_engine()
+        step = _make_step("plan")
+        state = _base_state()
+
+        node_fn = make_node(step, domain, engine)
+        await node_fn(state)
+
+        prompt_sent = engine.run.call_args.kwargs["prompt"]
+        assert "Task: Implement feature X" in prompt_sent
+        assert "/workspace" in prompt_sent
+        assert "Prompt for plan." not in prompt_sent
+        assert "# Python" not in prompt_sent
+
+    @pytest.mark.asyncio
+    async def test_prompt_does_not_inline_step_template(self, tmp_path: Path) -> None:
         steps = [{"name": "plan", "prompt": "plan"}]
         _write_domain_pack(tmp_path / "pack", steps)
         domain = DomainPack.load(tmp_path / "pack")
@@ -131,9 +195,7 @@ class TestMakeNodePromptAssembly:
         await node_fn(state)
 
         prompt_sent = engine.run.call_args.kwargs["prompt"]
-        assert "Prompt for plan." in prompt_sent
-        assert "Implement feature X" in prompt_sent
-        assert "/workspace" in prompt_sent
+        assert "Prompt for plan." not in prompt_sent
 
     @pytest.mark.asyncio
     async def test_forwards_tools_to_engine(self, tmp_path: Path) -> None:

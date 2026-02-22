@@ -16,5 +16,8 @@ dependencies = [
     "python-dotenv>=1.0",
 ]
 
+[project.scripts]
+gateflow = "gateflow.main:main"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/gateflow"]

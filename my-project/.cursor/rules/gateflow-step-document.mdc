@@ -1,0 +1,50 @@
+---
+description: Documentation Update
+alwaysApply: false
+---
+
+# Documentation Update
+
+Update project documentation to reflect code changes.
+
+## Procedure
+
+1. **Identify affected docs**: README, API docs, architecture docs, config examples.
+2. **Determine updates needed**:
+   - New features → add documentation
+   - Changed behavior → update existing docs
+   - Removed features → remove or mark deprecated
+3. **Update docs**: Keep changes minimal and focused on what changed.
+
+## Scope
+
+**Update if affected**:
+
+- README.md
+- API documentation
+- Architecture docs
+- Configuration examples
+
+**Do NOT update**:
+
+- Auto-generated docs (regenerate instead)
+- Changelog (handled separately)
+- Version numbers (handled by release process)
+
+## Output Format
+
+```markdown
+## Documentation Update: {UPDATED|SKIPPED}
+
+{If UPDATED:}
+Files updated:
+
+- {filepath}: {what was changed}
+
+{If SKIPPED:}
+No documentation updates needed.
+```
+
+## Important
+
+Only update what's affected by the code changes. Don't rewrite unrelated sections.

@@ -1,0 +1,62 @@
+---
+description: Finalize
+alwaysApply: false
+---
+
+# Finalize
+
+Commit changes and create a pull request.
+
+## Procedure
+
+### Commit
+
+1. **Create feature branch**: If on main/master, create a branch from the task ID. Never commit directly to main/master.
+2. **Review changes**: Run `git status` and `git diff` to see pending changes.
+3. **Stage changes**: `git add` relevant files. Exclude secrets (.env, credentials, keys).
+4. **Compose message** using conventional commit format:
+   ```
+   {type}: {short description}
+
+   {Optional body with details}
+   ```
+   Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`
+5. **Commit** the changes.
+
+### Push and Create PR
+
+1. **Check for existing PR**: If a PR already exists for this branch, report it and skip.
+2. **Push branch** to remote with `-u` flag.
+3. **Create pull request** via `gh pr create`:
+   - Title: derive from task description or commit message
+   - Body: auto-generate a summary of changes
+   - Base: main/master
+
+## Output Format
+
+```markdown
+## Finalize: {SUCCESS|SKIPPED|FAILED}
+
+### Commit
+
+- Hash: {commit-hash}
+- Message: {commit-message}
+- Files: {count} files changed
+
+### Pull Request
+
+- Branch: {branch-name}
+- PR: {pr-url}
+- Title: {pr-title}
+
+{If FAILED:}
+
+- Error: {error-message}
+- Suggestion: {how to resolve}
+```
+
+## Important
+
+- Never commit files containing secrets
+- Never force push or amend unless explicitly requested
+- Review the diff before committing
