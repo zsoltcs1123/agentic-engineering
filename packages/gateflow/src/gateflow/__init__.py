@@ -6,6 +6,7 @@ from gateflow.checkpointer import create_checkpointer
 from gateflow.domain import DomainPack, DomainPackError, StepDefinition
 from gateflow.engines import (
     CursorCLIEngine,
+    CursorCloudEngine,
     EngineError,
     ExecutionEngine,
     PermissionMode,
@@ -18,6 +19,7 @@ from gateflow.state import WorkflowState
 
 __all__ = [
     "CursorCLIEngine",
+    "CursorCloudEngine",
     "DomainPack",
     "DomainPackError",
     "EngineError",
