@@ -25,6 +25,7 @@
   },
   "cursorpyright.analysis.typeCheckingMode": "basic",
   "cSpell.words": [
+    "checkpointer",
     "gateflow"
   ]
 }

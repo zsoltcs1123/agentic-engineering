@@ -6,6 +6,7 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
+from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 from gateflow import DomainPack, build_graph, create_checkpointer
@@ -64,8 +65,8 @@ def _base_input() -> dict[str, Any]:
     }
 
 
-def _thread_config(thread_id: str) -> dict[str, Any]:
-    return {"configurable": {"thread_id": thread_id}}
+def _thread_config(thread_id: str) -> RunnableConfig:
+    return RunnableConfig(configurable={"thread_id": thread_id})
 
 
 @pytest.mark.integration

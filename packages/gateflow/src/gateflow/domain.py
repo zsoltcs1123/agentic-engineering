@@ -2,8 +2,18 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, Field
+
+TrustLevel = Literal["autonomous", "gates_only", "review_all", "cautious"]
+
+_TRUST_LEVEL_STEPS: dict[TrustLevel, set[str]] = {
+    "autonomous": set(),
+    "gates_only": {"review", "verify"},
+    "review_all": {"plan", "execute", "review", "verify"},
+    "cautious": {"plan", "execute", "review", "verify", "document", "finalize"},
+}
 
 
 class DomainPackError(Exception):
@@ -23,10 +33,17 @@ class EngineConfig(BaseModel):
     overrides: dict[str, str] = Field(default_factory=dict)
 
 
+class InterruptConfig(BaseModel):
+    trust_level: TrustLevel = "autonomous"
+    add: list[str] = Field(default_factory=list)
+    remove: list[str] = Field(default_factory=list)
+
+
 class DomainConfig(BaseModel):
     name: str
     steps: list[StepDefinition] = Field(min_length=1)
     engine: EngineConfig
+    interrupts: InterruptConfig = Field(default_factory=InterruptConfig)
     rules: dict[str, list[str]] = Field(default_factory=dict)
 
 
@@ -98,3 +115,9 @@ class DomainPack:
     @property
     def name(self) -> str:
         return self._config.name
+
+    def interrupt_after_steps(self) -> list[str]:
+        cfg = self._config.interrupts
+        base = _TRUST_LEVEL_STEPS[cfg.trust_level]
+        effective = (base | set(cfg.add)) - set(cfg.remove)
+        return [s.name for s in self._config.steps if s.name in effective]

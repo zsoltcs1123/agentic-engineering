@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any, Literal
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
@@ -21,7 +22,7 @@ def gate_router(state: WorkflowState) -> Literal["pass", "issues"]:
 
 def build_graph(
     domain: DomainPack,
-    engines: dict[str, ExecutionEngine],
+    engines: Mapping[str, ExecutionEngine],
     *,
     checkpointer: BaseCheckpointSaver[Any] | None = None,
 ) -> CompiledStateGraph[Any, Any, Any, Any]:
@@ -47,4 +48,5 @@ def build_graph(
 
     graph.add_edge(steps[-1].name, END)
 
-    return graph.compile(checkpointer=checkpointer)
+    interrupt_after = domain.interrupt_after_steps() or None
+    return graph.compile(checkpointer=checkpointer, interrupt_after=interrupt_after)

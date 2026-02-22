@@ -3,7 +3,13 @@
 __version__ = "0.1.0"
 
 from gateflow.checkpointer import create_checkpointer
-from gateflow.domain import DomainPack, DomainPackError, StepDefinition
+from gateflow.domain import (
+    DomainPack,
+    DomainPackError,
+    InterruptConfig,
+    StepDefinition,
+    TrustLevel,
+)
 from gateflow.engines import (
     CursorCLIEngine,
     CursorCloudEngine,
@@ -26,10 +32,12 @@ __all__ = [
     "EngineResult",
     "ExecutionEngine",
     "GateDecision",
+    "InterruptConfig",
     "NodeOutput",
     "PermissionMode",
     "RawLLMEngine",
     "StepDefinition",
+    "TrustLevel",
     "WorkflowState",
     "build_graph",
     "create_checkpointer",

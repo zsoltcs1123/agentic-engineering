@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from langchain_core.runnables import RunnableConfig
+from langgraph.graph.state import CompiledStateGraph
 
 from gateflow import DomainPack, build_graph, create_checkpointer
 from gateflow.models import EngineResult, GateDecision
@@ -77,6 +78,22 @@ def _thread_config(thread_id: str) -> RunnableConfig:
     return RunnableConfig(configurable={"thread_id": thread_id})
 
 
+async def _run_through_interrupts(
+    graph: CompiledStateGraph[Any, Any, Any, Any],
+    initial_input: dict[str, Any],
+    config: RunnableConfig,
+    *,
+    max_iterations: int = 20,
+) -> dict[str, Any]:
+    result = await graph.ainvoke(initial_input, config)
+    for _ in range(max_iterations):
+        state = await graph.aget_state(config)
+        if not state.next:
+            break
+        result = await graph.ainvoke(None, config)
+    return result
+
+
 @pytest.mark.integration
 class TestFullCompletion:
     @pytest.mark.asyncio
@@ -86,8 +103,9 @@ class TestFullCompletion:
         try:
             engine = _make_engine(_all_pass_responses())
             graph = build_graph(domain, {"cursor-cli": engine}, checkpointer=checkpointer)
+            cfg = _thread_config("full-run")
 
-            result = await graph.ainvoke(_base_input(), _thread_config("full-run"))
+            result = await _run_through_interrupts(graph, _base_input(), cfg)
 
             assert result["current_step"] == "finalize"
             assert len(result["trace"]) == len(_STEP_NAMES)
@@ -103,8 +121,9 @@ class TestFullCompletion:
         try:
             engine = _make_engine(_all_pass_responses())
             graph = build_graph(domain, {"cursor-cli": engine}, checkpointer=checkpointer)
+            cfg = _thread_config("fields-run")
 
-            result = await graph.ainvoke(_base_input(), _thread_config("fields-run"))
+            result = await _run_through_interrupts(graph, _base_input(), cfg)
 
             assert result["plan"] == "plan-output"
             assert result["review_result"] != ""
@@ -125,8 +144,9 @@ class TestGateHalt:
         try:
             engine = _make_engine(_issues_at_review_responses())
             graph = build_graph(domain, {"cursor-cli": engine}, checkpointer=checkpointer)
+            cfg = _thread_config("halt-run")
 
-            result = await graph.ainvoke(_base_input(), _thread_config("halt-run"))
+            result = await _run_through_interrupts(graph, _base_input(), cfg)
 
             assert result["gate_verdict"] == "ISSUES"
             assert len(result["trace"]) == 3
@@ -143,8 +163,9 @@ class TestGateHalt:
         try:
             engine = _make_engine(_issues_at_review_responses())
             graph = build_graph(domain, {"cursor-cli": engine}, checkpointer=checkpointer)
+            cfg = _thread_config("halt-verify")
 
-            result = await graph.ainvoke(_base_input(), _thread_config("halt-verify"))
+            result = await _run_through_interrupts(graph, _base_input(), cfg)
 
             assert result["verification_result"] == ""
             assert "document" not in result.get("domain_data", {})
@@ -164,7 +185,7 @@ class TestCheckpointResume:
             graph = build_graph(domain, {"cursor-cli": engine}, checkpointer=checkpointer)
             thread = _thread_config("resume-thread")
 
-            await graph.ainvoke(_base_input(), thread)
+            await _run_through_interrupts(graph, _base_input(), thread)
             calls_after_first = engine.run.call_count
 
             await graph.ainvoke(None, thread)
@@ -182,7 +203,7 @@ class TestCheckpointResume:
             graph = build_graph(domain, {"cursor-cli": engine}, checkpointer=checkpointer)
             thread = _thread_config("preserve-thread")
 
-            await graph.ainvoke(_base_input(), thread)
+            await _run_through_interrupts(graph, _base_input(), thread)
             state_before = await graph.aget_state(thread)
 
             await graph.ainvoke(None, thread)

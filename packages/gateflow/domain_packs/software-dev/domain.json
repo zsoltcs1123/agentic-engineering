@@ -26,6 +26,9 @@
   "engine": {
     "default": "cursor-cli"
   },
+  "interrupts": {
+    "trust_level": "cautious"
+  },
   "rules": {
     "plan": ["python", "python-testing"],
     "execute": ["python", "python-testing"],

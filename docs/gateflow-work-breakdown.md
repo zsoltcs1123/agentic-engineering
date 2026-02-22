@@ -17,13 +17,14 @@ Build Gateflow — a domain-agnostic, code-based workflow orchestrator on LangGr
 | 9   | Implement Cursor Cloud API engine              | MVP   | 2              | DONE    |
 | 10  | Create software-dev domain pack                | MVP   | 4              | DONE    |
 | 11  | End-to-end integration test                    | MVP   | 6, 7, 8, 9, 10 | DONE    |
-| 12  | Add structured observability and tracing       | v1    | 11             | PENDING |
-| 13  | Add trust levels and interrupt configuration   | v1    | 11             | PENDING |
-| 14  | Add parallel execution and resource management | v1    | 11             | PENDING |
-| 15  | Build CLI                                      | v1    | 11             | PENDING |
-| 16  | Implement gate failure retry loops             | v1    | 11             | PENDING |
-| 17  | Add per-step context strategy                  | v1    | 11             | PENDING |
-| 18  | Implement Claude Agent SDK engine              | v1    | 2              | PENDING |
+| 12  | Add trust levels and interrupt configuration   | MVP   | 11             | DONE    |
+| 13  | Implement workflow runner                      | MVP   | 12             | PENDING |
+| 14  | Add structured observability and tracing       | v1    | 11             | PENDING |
+| 15  | Add parallel execution and resource management | v1    | 11             | PENDING |
+| 16  | Build CLI                                      | v1    | 13             | PENDING |
+| 17  | Implement gate failure retry loops             | v1    | 11             | PENDING |
+| 18  | Add per-step context strategy                  | v1    | 11             | PENDING |
+| 19  | Implement Claude Agent SDK engine              | v1    | 2              | PENDING |
 
 ## Tasks
 
@@ -345,7 +346,71 @@ Validate the full orchestrator with the software-dev domain pack: state transiti
 
 ---
 
-### 12. Add structured observability and tracing
+### 12. Add trust levels and interrupt configuration
+
+Implement configurable interrupt points based on trust levels so the graph pauses after designated steps for human review.
+
+**Steps:**
+
+1. Define TrustLevel literal (autonomous, gates_only, review_all, cautious) and InterruptConfig model with trust_level, add, and remove fields
+2. Add InterruptConfig to DomainConfig with a default of autonomous (backward compatible)
+3. Add interrupt_after_steps() method to DomainPack that computes the effective interrupt set from trust level base + add - remove, intersected with actual step names
+4. Wire into graph builder: build_graph reads domain.interrupt_after_steps() and passes to graph.compile(interrupt_after=...)
+5. Update software-dev domain pack with trust level configuration
+6. Write unit tests for trust level resolution, add/remove overrides, and step filtering
+7. Write integration tests: graph pauses at interrupt points, resumes correctly
+
+**Acceptance criteria:**
+
+- Each trust level produces the correct set of interrupt-after points
+- Per-step add/remove overrides extend or shrink the interrupt set
+- Graph pauses at interrupt points and resumes from checkpoint
+- Autonomous mode produces zero interrupts (backward compatible)
+
+**Verification scenarios:**
+
+- Autonomous trust level — empty interrupt list
+- Gates_only — interrupts at review and verify steps only
+- Gates_only with add: ["plan"] — plan step is also interrupted
+- Cautious with remove: ["finalize"] — all steps except finalize interrupted
+- Steps not present in the domain pack are ignored
+- Resume after interrupt — execution continues from correct step, earlier results preserved
+
+**Depends on:** 11
+
+---
+
+### 13. Implement workflow runner
+
+Build a minimal runner in main.py that loads a domain pack, creates engines, builds the graph, and executes a workflow interactively with interrupt handling.
+
+**Steps:**
+
+1. Accept task description and working directory from CLI args (argparse)
+2. Load domain pack from a configurable path (default to bundled software-dev)
+3. Create engine instances based on domain config
+4. Create SQLite checkpointer
+5. Build the graph and run the invoke loop: invoke, check for interrupts, print step output, prompt user for continue/abort, resume
+6. Print final summary with trace entries and total duration
+
+**Acceptance criteria:**
+
+- Runnable via `python -m gateflow "task description" --workdir ./path`
+- Pauses at configured interrupt points and waits for user input
+- Resumes from checkpoint on continue
+- Prints step output and gate verdicts at each pause
+
+**Verification scenarios:**
+
+- Run with autonomous trust level — completes without pausing
+- Run with cautious trust level — pauses after each step, continues on user input
+- Abort mid-workflow — exits cleanly
+
+**Depends on:** 12
+
+---
+
+### 14. Add structured observability and tracing
 
 Add step-level logging, reasoning enforcement, and per-run trace artifact output.
 
@@ -373,37 +438,7 @@ Add step-level logging, reasoning enforcement, and per-run trace artifact output
 
 ---
 
-### 13. Add trust levels and interrupt configuration
-
-Implement configurable interrupt points based on trust levels, with approve/modify/reject actions at each interrupt.
-
-**Steps:**
-
-1. Define trust levels (autonomous, gates_only, review_all, cautious) mapping to interrupt-before step sets
-2. Support per-node overrides that add or remove interrupts
-3. Wire into the graph builder via LangGraph's interrupt_before parameter
-4. Allow callers to modify state on resume (edit plan, override gate verdict)
-5. Write integration tests per trust level
-
-**Acceptance criteria:**
-
-- Each trust level produces the correct set of interrupt points
-- Per-node overrides add or remove interrupts
-- Graph pauses at interrupt points and resumes with optionally modified state
-- Autonomous mode produces zero interrupts
-
-**Verification scenarios:**
-
-- Autonomous trust level — empty interrupt list
-- Gates_only — interrupts at review and verify steps only
-- Gates_only with per-node override adding plan — plan step is also interrupted
-- Resume with modified state — next step receives the modification
-
-**Depends on:** 11
-
----
-
-### 14. Add parallel execution and resource management
+### 15. Add parallel execution and resource management
 
 Enable running multiple tasks concurrently with workspace isolation and resource controls.
 
@@ -432,7 +467,7 @@ Enable running multiple tasks concurrently with workspace isolation and resource
 
 ---
 
-### 15. Build CLI
+### 16. Build CLI
 
 Ship a command-line interface for running workflows from the terminal.
 
@@ -462,11 +497,11 @@ Ship a command-line interface for running workflows from the terminal.
 - Invoke the status command for an in-progress task, verify it displays current step — Automation: full
 - Invoke the list command with multiple tasks present, verify all are listed — Automation: full
 
-**Depends on:** 11
+**Depends on:** 13
 
 ---
 
-### 16. Implement gate failure retry loops
+### 17. Implement gate failure retry loops
 
 Add configurable automatic retries when a gate returns ISSUES, re-invoking the target step with issues appended to the prompt.
 
@@ -496,7 +531,7 @@ Add configurable automatic retries when a gate returns ISSUES, re-invoking the t
 
 ---
 
-### 17. Add per-step context strategy
+### 18. Add per-step context strategy
 
 Allow each step to declare whether it explores context via tools or receives pre-injected context from the orchestrator.
 
@@ -525,7 +560,7 @@ Allow each step to declare whether it explores context via tools or receives pre
 
 ---
 
-### 18. Implement Claude Agent SDK engine
+### 19. Implement Claude Agent SDK engine
 
 Build the in-process engine wrapping the Claude Agent SDK with hook-based observability and tool restrictions.
 
