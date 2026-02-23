@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gateflow-poc"
+version = "0.1.0"
+description = "Minimal POC: LangGraph orchestrator over Cursor CLI agent"
+requires-python = ">=3.14"
+dependencies = [
+    "langgraph>=0.4",
+    "langgraph-checkpoint-sqlite>=2.0",
+]
+
+[project.scripts]
+gateflow-poc = "gateflow_poc.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gateflow_poc"]

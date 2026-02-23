@@ -6,6 +6,7 @@ requires-python = ">=3.14"
 members = [
     "agentic-engineering",
     "gateflow",
+    "gateflow-poc",
 ]
 
 [[package]]
@@ -14,6 +15,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "gateflow" },
+    { name = "gateflow-poc" },
 ]
 
 [package.dev-dependencies]
@@ -28,7 +30,10 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "gateflow", editable = "packages/gateflow" }]
+requires-dist = [
+    { name = "gateflow", editable = "packages/gateflow" },
+    { name = "gateflow-poc", editable = "packages/gateflow-poc" },
+]
 
 [package.metadata.requires-dev]
 dev = [
@@ -287,6 +292,21 @@ requires-dist = [
     { name = "langgraph-checkpoint-sqlite", specifier = ">=2.0" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "python-dotenv", specifier = ">=1.0" },
+]
+
+[[package]]
+name = "gateflow-poc"
+version = "0.1.0"
+source = { editable = "packages/gateflow-poc" }
+dependencies = [
+    { name = "langgraph" },
+    { name = "langgraph-checkpoint-sqlite" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "langgraph", specifier = ">=0.4" },
+    { name = "langgraph-checkpoint-sqlite", specifier = ">=2.0" },
 ]
 
 [[package]]

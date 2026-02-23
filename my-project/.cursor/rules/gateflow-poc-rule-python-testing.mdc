@@ -1,0 +1,19 @@
+---
+description: Python testing standards
+alwaysApply: false
+---
+
+# Testing Standards
+
+## Organization
+
+- Mirror source structure in tests/
+- Markers: @pytest.mark.unit, @pytest.mark.integration, @pytest.mark.slow
+
+## Style
+
+- Descriptive names: test_<subject>_<behavior>_when_<condition>
+- Mock external dependencies
+- Test behavior, not implementation
+- Use parametrize for boundary values
+- Don't test language features, only our logic

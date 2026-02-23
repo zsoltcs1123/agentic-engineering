@@ -1,0 +1,23 @@
+---
+description: Python development standards (3.14+)
+alwaysApply: false
+---
+
+# Python Development Standards
+
+Python version: 3.14+
+
+## Style
+
+- Type hints on everything
+- Absolute imports only
+- No docstrings unless public API
+- No comments unless non-obvious logic
+- Functional over OO when appropriate
+
+## Design
+
+- Dataclasses for data models
+- Explicit error handling with proper exception types
+- Composition over inheritance
+- YAGNI: don't add functionality until needed

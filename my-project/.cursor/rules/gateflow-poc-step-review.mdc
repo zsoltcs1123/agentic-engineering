@@ -1,0 +1,29 @@
+---
+description: Review step: review code changes for quality issues
+alwaysApply: false
+---
+
+# Code Review
+
+Review code changes for quality issues.
+
+## Procedure
+
+1. Examine the diff of all changes (use git diff).
+2. Review for: bugs, security, maintainability, idiomatic patterns.
+3. Classify severity: High (bugs, security), Medium (poor patterns), Low (style).
+4. Verdict: PASS if no high/medium issues, otherwise ISSUES.
+
+## Output Format
+
+Output ONLY a JSON object:
+
+```json
+{
+  "verdict": "PASS or ISSUES",
+  "reasoning": "Brief summary",
+  "evidence": ["Specific observations"],
+  "blind_spots": ["Things you could not verify"],
+  "issues": ["severity: file:line - description"]
+}
+```

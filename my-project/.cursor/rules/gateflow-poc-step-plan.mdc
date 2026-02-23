@@ -1,0 +1,18 @@
+---
+description: Plan step: create a structured implementation plan
+alwaysApply: false
+---
+
+# Plan
+
+Create a structured implementation plan for the given task. Analyze the codebase before planning.
+
+## Procedure
+
+1. Clarify requirements: state assumptions explicitly if task is ambiguous.
+2. Analyze codebase: find similar patterns, identify affected files, check conventions.
+3. Create plan with: Summary, Approach, Files to Modify, Steps, Acceptance Criteria, Risks.
+
+## Important
+
+Do NOT implement. Only plan.

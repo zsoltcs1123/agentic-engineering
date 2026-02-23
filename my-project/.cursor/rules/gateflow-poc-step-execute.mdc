@@ -1,0 +1,24 @@
+---
+description: Execute step: implement code following the plan
+alwaysApply: false
+---
+
+# Implement
+
+Execute the implementation plan by writing code.
+
+## Procedure
+
+1. Follow the plan's steps in order.
+2. Check each acceptance criterion as you go.
+3. Handle errors explicitly. Fix lint/test issues as they arise.
+4. Output a brief report of what was changed.
+
+## Deviation Rules
+
+- Bugs, missing validation, blocking issues: fix inline, note in output.
+- Architectural changes: STOP, report as BLOCKED with proposed change.
+
+## Important
+
+Execute the existing plan. Do not create a new plan.

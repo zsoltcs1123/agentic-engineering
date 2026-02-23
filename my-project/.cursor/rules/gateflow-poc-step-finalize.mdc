@@ -1,0 +1,23 @@
+---
+description: Finalize step: commit changes and create a pull request
+alwaysApply: false
+---
+
+# Finalize
+
+Commit changes and create a pull request.
+
+## Procedure
+
+1. Create a feature branch if on main/master.
+2. Run git status and git diff to review.
+3. Stage relevant files. Exclude secrets.
+4. Commit with conventional commit format (feat/fix/refactor/docs/test/chore).
+5. Push branch to remote with -u flag.
+6. Create PR via gh pr create.
+
+## Important
+
+- Never commit secrets
+- Never force push
+- Review diff before committing

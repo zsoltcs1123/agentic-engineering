@@ -1,0 +1,29 @@
+---
+description: Verify step: check implementation matches acceptance criteria
+alwaysApply: false
+---
+
+# Code Verification
+
+Verify that code changes match the acceptance criteria from the plan.
+
+## Procedure
+
+1. Extract acceptance criteria from the plan.
+2. Examine all code changes.
+3. Check every criterion is addressed.
+4. Verdict: PASS if all criteria met, ISSUES if not.
+
+## Output Format
+
+Output ONLY a JSON object:
+
+```json
+{
+  "verdict": "PASS or ISSUES",
+  "reasoning": "Brief summary",
+  "evidence": ["Criterion checked and result"],
+  "blind_spots": ["Things you could not verify"],
+  "issues": ["Unmet criterion or problem"]
+}
+```

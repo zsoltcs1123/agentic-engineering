@@ -6,10 +6,12 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "gateflow",
+    "gateflow-poc",
 ]
 
 [tool.uv.sources]
 gateflow = { workspace = true }
+gateflow-poc = { workspace = true }
 
 [tool.uv.workspace]
 members = ["packages/*"]
