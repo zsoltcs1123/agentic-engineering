@@ -9,13 +9,25 @@
 - **Python**: 3.14+
 - **Package Manager**: uv (workspaces)
 
-## Current Package: gateflow
+## Packages
+
+# gateflow
 
 Quality-gated workflow orchestrator built on LangGraph.
 
 - **Location**: `packages/gateflow/`
 - **Architecture**: `docs/gateflow-architecture.md`
 - **Reference system**: `.agents/` (markdown-driven predecessor)
+
+This project currently serves as a reference only. Its implementation is LLM generated and too complex to make changes in. I am reimplementing something similar in `agentflow` package - taking a slow and cautious route.
+
+# agentflow
+
+I want to reimplement `gateflow` package step-by-step in a much more focused way.
+
+# gateflow-poc
+
+Can be largely ignored. Minimal POC: LangGraph orchestrator over Cursor CLI agent.
 
 ## Commands
 

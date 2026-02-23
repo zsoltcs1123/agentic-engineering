@@ -1,6 +1,6 @@
 ---
-description: get-docs rule from .agents/rules/
-alwaysApply: false
+description: Consult documentation before planning, reviewing, or implementing
+alwaysApply: true
 ---
 
 # Getting Documentation

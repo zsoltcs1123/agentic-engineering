@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agentflow"
+version = "0.1.0"
+description = "Minimal LangGraph workflow over Cursor CLI"
+requires-python = ">=3.14"
+dependencies = [
+    "langgraph>=0.4",
+    "langgraph-checkpoint-sqlite>=2.0",
+    "rich>=13",
+]
+
+[project.scripts]
+agentflow = "agentflow.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agentflow"]

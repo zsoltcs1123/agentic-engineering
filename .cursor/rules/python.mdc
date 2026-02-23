@@ -1,11 +1,6 @@
 ---
-description: python rule from .agents/rules/
-alwaysApply: false
----
-
----
 description: Python coding standards and best practices
-alwaysApply: false
+alwaysApply: true
 ---
 
 # Python Development Standards
@@ -22,6 +17,8 @@ Python version: [3.14](https://docs.python.org/3/whatsnew/3.14.html). When uncer
 
 ## Design
 
+- **Separation of concerns**: Do not mix logic, data, and layers in the same function or class
+- **Single Responsibility Principle**: Each function or class should have a single responsibility
 - **Dataclasses for data models** - Prefer `@dataclass` over regular classes
 - **RERO** - Receive an object, return an object; avoid primitive obsession for domain concepts
 - **SLAP** - Each function should operate at a single level of abstraction

@@ -1,12 +1,6 @@
 ---
-alwaysApply: false
----
-
----
-
 description: Testing standards and best practices for Python tests
 alwaysApply: false
-
 ---
 
 # Testing Standards
