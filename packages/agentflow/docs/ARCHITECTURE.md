@@ -73,6 +73,10 @@ class StepDefinition:
     engine: str | None = None     # override default engine for this step
     rules: list[str] = field(default_factory=list)
     inputs: list[str] = field(default_factory=list)  # prior step names whose outputs to inject
+    # Phase 5: Retry/Convergence + Goal Gates
+    max_retries: int = 0               # retry limit on BLOCK (0 = halt immediately)
+    retry_target: str | None = None    # step to jump back to on BLOCK
+    goal_gate: bool = False            # pipeline cannot complete until this gate passes
 
 @dataclass
 class WorkflowDefinition:
@@ -81,6 +85,9 @@ class WorkflowDefinition:
     trust_level: str = "cautious"  # autonomous | gates_only | cautious
     rules_dir: str | None = None
     prompts_dir: str | None = None
+    # Future (scenario evaluation + shift work):
+    # scenarios_dir: str | None = None
+    # autonomous_requires: dict | None = None
 ```
 
 Example `workflow.yaml`:
@@ -107,12 +114,17 @@ steps:
     gate: true
     inputs: [plan]
     rules: [python, python-testing]
+    max_retries: 3           # Phase 5: retry up to 3 times on BLOCK
+    retry_target: implement  # Phase 5: jump back to implement on BLOCK
 
   - name: verify
     prompt: verify
     gate: true
+    goal_gate: true          # Phase 5: pipeline cannot complete unless this passes
     inputs: [plan]
     rules: [python-testing]
+    max_retries: 3
+    retry_target: implement
 
   - name: document
     prompt: document
@@ -146,6 +158,20 @@ def gate_router(state: WorkflowState) -> Literal["pass", "block"]:
 ```
 
 For each gate step, `add_conditional_edges` routes to the next step on PASS, or END on BLOCK.
+
+**Phase 5: Retry Routing**
+
+Phase 5 extends gate routing with a convergence loop modeled on StrongDM Attractor's retry/convergence pattern (see [patterns doc](../../docs/strongdm/strongdm-patterns-for-agentflow.md)):
+
+| Condition | Route |
+| --- | --- |
+| PASS | Next step (unchanged) |
+| BLOCK + retries remaining | `retry_target` step, with `GateDecision.issues` injected into context |
+| BLOCK + retries exhausted | END |
+
+The retry context injection is critical: when looping back, the prompt assembler appends the gate's issues so the implementing agent knows what failed. The `retry_count` in state tracks attempts per step.
+
+At pipeline exit, a goal gate check runs: if any step with `goal_gate: true` has a BLOCK verdict, the pipeline routes to that step's `retry_target` instead of END (up to `max_retries`). This prevents incomplete pipelines — the pipeline cannot finish until all goal gates are satisfied.
 
 ### 3. Node Factory (`workflow/nodes.py`)
 
@@ -188,6 +214,8 @@ class WorkflowState(TypedDict):
     gate_verdict: str           # "PASS" | "BLOCK" | "" — reset per gate step
     step_outputs: dict[str, str]  # all step outputs keyed by step name
     trace: Annotated[list[TraceEntry], operator.add]
+    # Phase 5: Retry/Convergence
+    retry_count: dict[str, int]   # retries consumed per gate step name
 ```
 
 `step_outputs` is the accumulator — every node writes its output here keyed by step name. The prompt assembler reads from it when resolving a step's `inputs` list. Individual fields like `plan` and `review` are kept for backward compatibility and direct access in prompts.
@@ -320,7 +348,7 @@ LangGraph Studio serves as the development/debugging UI. The CLI + Rich display 
 | --- | --- | --- |
 | YAML over JSON for workflow definition | More readable, supports comments, better for human editing | Extra dependency (`PyYAML`). Gateflow's JSON was harder to maintain. |
 | Dataclasses over Pydantic for config | Fewer dependencies, simpler. Gateflow's Pydantic models were overkill. | Less automatic validation. Manual validation required. |
-| Gate failure halts (no retry loop) | Simpler. Retry loops risk infinite cycles. Manual fix and resume is safer until gate quality is proven. | Requires human intervention on every gate failure. |
+| Gate failure halts (Phases 1–4), then retry loops (Phase 5) | Ship halt-first for simplicity. Phase 5 adds retry routing (`max_retries` + `retry_target` + `goal_gate`) once gate quality is proven. Design from StrongDM Attractor. | Phases 1–4: requires human intervention on every gate failure. Phase 5: risk of wasted retries if gate quality is poor. |
 | Engine protocol as Python Protocol | Duck-typed, no base class inheritance. Easy to add engines. | No runtime enforcement — violations surface as runtime errors, not import-time. |
 | Prompts and rules live in consumer project | Agentflow stays domain-free. Consumer controls quality standards. | Consumer must create and maintain prompt/rule files. Could ship optional defaults later. |
 | `step_outputs` dict for cross-step context | Simple accumulator. Every step writes here; later steps read via `inputs`. | All outputs in memory. Large outputs could grow state significantly. |
@@ -336,7 +364,10 @@ LangGraph Studio serves as the development/debugging UI. The CLI + Rich display 
 | --- | --- | --- |
 | Claude Code engine | Claude Code CLI stabilizes | New engine module implementing `ExecutionEngine` protocol. Subprocess-based like Cursor CLI. |
 | Claude SDK engine | Need in-process control, tool hooks | New engine module. Library-based, richer observability via SDK hooks. |
-| Gate retry loops | Confidence in gate quality, repeated manual fixes | Add `max_retries` and `retry_target` to `StepDefinition`. Conditional edge loops back to target step. |
+| Scenario evaluation | Need stronger gates than LLM opinion | `scenarios_dir` with behavioral specs external to workdir. Scenarios run against built software; satisfaction scoring replaces boolean pass/fail. See [patterns doc](../../docs/strongdm/strongdm-patterns-for-agentflow.md). |
+| Autonomous readiness | Trust levels implemented, autonomous mode available | `autonomous_requires` validation: minimum spec length, scenarios present, spec file exists. Refuse autonomous mode if specification is insufficient. |
+| Pyramid summaries | Context overflow on long pipelines | `summary_level` option on `inputs` declaration. Prompt assembler generates summaries at target word count before injection. Cache in `step_outputs`. |
+| Filesystem memory | Cross-task context needed | Prompt convention, not orchestrator code. `.agentflow/memory/` directory with pyramid-indexed task summaries. Agents read/write via prompt instructions. |
 | Parallel task execution | Multiple tasks, workspace isolation needed | `asyncio.gather` over tasks, each with own workdir/thread. Git worktree integration. |
 | Token/cost tracking | API-based engines (Claude SDK) provide usage data | Extend `EngineResult` with `token_usage`. Aggregate in trace. |
 | Default prompt pack | Consumer onboarding friction | Ship optional `agentflow init` that scaffolds a starter workflow.yaml + prompts. |
@@ -350,3 +381,4 @@ LangGraph Studio serves as the development/debugging UI. The CLI + Rich display 
 | --- | --- | --- |
 | 1.0 | 2026-02-23 | Initial version |
 | 1.1 | 2026-02-23 | Added step dependency model: `inputs` field on StepDefinition, input context injection in prompt assembly, build-time validation |
+| 1.2 | 2026-02-25 | Added Phase 5 retry/convergence design (StrongDM Attractor model); added future patterns: scenario evaluation, autonomous readiness, pyramid summaries, filesystem memory |
