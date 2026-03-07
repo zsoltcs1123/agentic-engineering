@@ -1,16 +1,10 @@
 {
-  "tasks": {
-    "maxSubtasks": 7
-  },
   "skillRules": {
-    "create-task": ["create-task"],
-    "dev-cycle": [],
-    "plan": ["get-docs", "python"],
-    "implement": ["get-docs", "python-testing", "python"],
-    "code-review": ["get-docs", "python-testing", "python"],
-    "code-verification": [],
-    "documentation-update": ["documentation"],
-    "commit": [],
-    "push-pr": []
+    "dev-cycle": ["get-docs", "validate-plan"],
+    "implement": ["get-docs", "validate-plan"],
+    "code-review": ["get-docs"],
+    "document": [],
+    "finalize": ["commit"],
+    "ci-debug": []
   }
 }

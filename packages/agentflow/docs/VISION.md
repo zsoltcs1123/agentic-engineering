@@ -1,4 +1,4 @@
-# Agentflow — Foundation
+# Agentflow — Vision
 
 ## Problem Statement
 
@@ -116,21 +116,21 @@
 
 ## Open Questions
 
-| #   | Question                                                                              | Notes                                                                                                                                                                              |
-| --- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | YAML or JSON for workflow definition?                                                 | YAML is more readable for humans. JSON is simpler to parse. Gateflow used JSON.                                                                                                    |
-| 2   | Should gate failure halt the entire task or allow human override and resume?          | Current plan: halt. But "modify state and resume" via LangGraph checkpointing is possible.                                                                                         |
-| 3   | ~~How should the Document step access context from all previous steps?~~              | Resolved: steps declare `inputs` (list of prior step names). The prompt assembler auto-injects those outputs. All outputs also accumulate in `step_outputs` for undeclared access. |
-| 4   | Should prompts live in the agentflow package (defaults) or only in consumer projects? | Could ship sensible defaults that consumers override.                                                                                                                              |
-| 5   | What is the boundary between agentflow config and Cursor rules (`.cursor/rules/`)?    | Rules in `.cursor/rules/` are picked up by Cursor automatically. Agentflow rules are injected into prompts. These could overlap or conflict.                                       |
+| #   | Question                                                                              | Notes                                                                                                                                                                                                                                                            |
+| --- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | YAML or JSON for workflow definition?                                                 | YAML is more readable for humans. JSON is simpler to parse. Gateflow used JSON.                                                                                                                                                                                  |
+| 2   | Should gate failure halt the entire task or allow human override and resume?          | Current plan: halt. But "modify state and resume" via LangGraph checkpointing is possible.                                                                                                                                                                       |
+| 3   | ~~How should the Document step access context from all previous steps?~~              | Resolved: steps declare `inputs` (list of prior step names). The prompt assembler auto-injects those outputs. All outputs also accumulate in `step_outputs` for undeclared access.                                                                               |
+| 4   | Should prompts live in the agentflow package (defaults) or only in consumer projects? | Could ship sensible defaults that consumers override.                                                                                                                                                                                                            |
+| 5   | What is the boundary between agentflow config and Cursor rules (`.cursor/rules/`)?    | Rules in `.cursor/rules/` are picked up by Cursor automatically. Agentflow rules are injected into prompts. These could overlap or conflict.                                                                                                                     |
 | 6   | ~~How should gate failure retry loops work?~~                                         | Resolved: StrongDM Attractor model — `max_retries` + `retry_target` + `goal_gate` on `StepDefinition`. BLOCK loops back to retry_target with issues in context. Now roadmap Phase 5. See [patterns doc](../../docs/strongdm/strongdm-patterns-for-agentflow.md). |
 
 ---
 
 ## Version History
 
-| Version | Date       | Description                                                                       |
-| ------- | ---------- | --------------------------------------------------------------------------------- |
-| 1.0     | 2026-02-23 | Initial version                                                                   |
-| 1.1     | 2026-02-23 | Added step dependency model (inputs field) to scope and resolved open question #3 |
+| Version | Date       | Description                                                                                                 |
+| ------- | ---------- | ----------------------------------------------------------------------------------------------------------- |
+| 1.0     | 2026-02-23 | Initial version                                                                                             |
+| 1.1     | 2026-02-23 | Added step dependency model (inputs field) to scope and resolved open question #3                           |
 | 1.2     | 2026-02-25 | Retry/convergence promoted from future to roadmap Phase 5; added StrongDM-informed patterns to future scope |

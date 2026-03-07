@@ -49,54 +49,18 @@ Get-ChildItem $rulesSourceDir -Filter "*.md" -File | ForEach-Object {
     $ruleName = $_.BaseName
     $ruleContent = Get-Content $_.FullName -Raw
     $mdcPath = Join-Path $rulesDir "$ruleName.mdc"
-    
+
+    $alwaysApply = if ($ruleName -eq "get-docs") { "true" } else { "false" }
     $mdcContent = @"
 ---
 description: $ruleName rule from .agents/rules/
-alwaysApply: false
+alwaysApply: $alwaysApply
 ---
 
 $ruleContent
 "@
     Set-Content -Path $mdcPath -Value $mdcContent -NoNewline
-    Write-Host "  Rule: $ruleName.mdc"
+    Write-Host "  Rule: $ruleName.mdc (alwaysApply=$alwaysApply)"
 }
 
-# === Subagents: generate thin wrappers for workflow skills ===
-$agentsDir = Join-Path $cursorDir "agents"
-$workflowDir = Join-Path $skillsSourceDir "workflow"
-
-if (Test-Path $agentsDir) {
-    Remove-Item $agentsDir -Force -Recurse
-}
-New-Item -ItemType Directory -Force -Path $agentsDir | Out-Null
-
-Get-ChildItem $workflowDir -Directory | ForEach-Object {
-    $skillPath = Join-Path $_.FullName "SKILL.md"
-    if (Test-Path $skillPath) {
-        $skillName = $_.Name
-        $skillContent = Get-Content $skillPath -Raw
-        
-        $description = ""
-        if ($skillContent -match '(?m)^description:\s*(.+)$') {
-            $description = $Matches[1].Trim()
-        }
-        if (-not $description) {
-            $description = "$skillName workflow skill"
-        }
-        
-        $agentPath = Join-Path $agentsDir "$skillName.md"
-        $agentContent = @"
----
-name: $skillName
-description: $description
----
-
-Read and follow the skill at ``.agents/skills/workflow/$skillName/SKILL.md``
-"@
-        Set-Content -Path $agentPath -Value $agentContent -NoNewline
-        Write-Host "  Subagent: $skillName"
-    }
-}
-
-Write-Host "Setup complete. Cursor will discover skills, rules, and subagents from .agents/"
+Write-Host "Setup complete. Cursor will discover skills and rules from .agents/"

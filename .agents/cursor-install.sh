@@ -26,41 +26,19 @@ for rule_file in .agents/rules/*.md; do
     [ -f "$rule_file" ] || continue
     rule_name=$(basename "$rule_file" .md)
     mdc_path=".cursor/rules/$rule_name.mdc"
-    
+
+    always_apply="false"
+    [ "$rule_name" = "get-docs" ] && always_apply="true"
+
     cat > "$mdc_path" << EOF
 ---
 description: $rule_name rule from .agents/rules/
-alwaysApply: false
+alwaysApply: $always_apply
 ---
 
 $(cat "$rule_file")
 EOF
-    echo "  Rule: $rule_name.mdc"
+    echo "  Rule: $rule_name.mdc (alwaysApply=$always_apply)"
 done
 
-# === Subagents: generate thin wrappers for workflow skills ===
-rm -rf .cursor/agents
-mkdir -p .cursor/agents
-
-for skill_dir in .agents/skills/workflow/*/; do
-    [ -d "$skill_dir" ] || continue
-    skill_path="${skill_dir}SKILL.md"
-    [ -f "$skill_path" ] || continue
-    
-    skill_name=$(basename "$skill_dir")
-    description=$(grep -m1 '^description:' "$skill_path" 2>/dev/null | sed 's/^description:\s*//' || echo "$skill_name workflow skill")
-    [ -z "$description" ] && description="$skill_name workflow skill"
-    
-    agent_path=".cursor/agents/$skill_name.md"
-    cat > "$agent_path" << EOF
----
-name: $skill_name
-description: $description
----
-
-Read and follow the skill at \`.agents/skills/workflow/$skill_name/SKILL.md\`
-EOF
-    echo "  Subagent: $skill_name"
-done
-
-echo "Setup complete. Cursor will discover skills, rules, and subagents from .agents/"
+echo "Setup complete. Cursor will discover skills and rules from .agents/"
