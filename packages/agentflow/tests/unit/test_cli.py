@@ -21,6 +21,14 @@ class TestParseArgs:
         assert args.workdir == "/tmp/proj"
         assert args.model == "gpt-5"
 
+    def test_default_max_review_cycles(self) -> None:
+        args = _parse_args(["run", "some task"])
+        assert args.max_review_cycles == 3
+
+    def test_explicit_max_review_cycles(self) -> None:
+        args = _parse_args(["run", "some task", "--max-review-cycles", "5"])
+        assert args.max_review_cycles == 5
+
     def test_missing_subcommand_yields_none(self) -> None:
         args = _parse_args([])
         assert args.command is None

@@ -17,6 +17,7 @@ class TraceEntry:
 class WorkflowState(TypedDict):
     task: str
     workdir: str
-    plan: str
-    review: str
+    review_passed: bool
+    review_cycles: int
+    max_review_cycles: int
     trace: Annotated[list[TraceEntry], operator.add]

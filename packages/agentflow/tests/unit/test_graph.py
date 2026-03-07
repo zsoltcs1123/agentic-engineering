@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 from agentflow.engine import CursorCLI, EngineResult
 from agentflow.engine.types import ToolCallEntry
-from agentflow.workflow.graph import _make_trace_entry, build_graph
+from agentflow.workflow.graph import _make_trace_entry, _review_passed, build_graph
 
 
 @pytest.fixture()
@@ -37,16 +37,64 @@ class TestMakeTraceEntry:
 
 
 @pytest.mark.unit
+class TestReviewPassed:
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "LGTM, all good",
+            "No issues found in this review.",
+            "PASS",
+            "Code looks good to me",
+            "Changes approved, ready to merge",
+            "I see no problems with this implementation",
+        ],
+    )
+    def test_returns_true_for_pass_signals(self, text: str) -> None:
+        assert _review_passed(text) is True
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Found 3 critical bugs that need fixing",
+            "The error handling is insufficient",
+            "Please refactor the database layer",
+            "",
+        ],
+    )
+    def test_returns_false_for_issues_or_ambiguous(self, text: str) -> None:
+        assert _review_passed(text) is False
+
+
+@pytest.mark.unit
 class TestBuildGraph:
     def test_graph_contains_expected_nodes(self, engine: CursorCLI) -> None:
         graph = build_graph(engine)
         node_names = set(graph.get_graph().nodes.keys())
-        assert {"plan", "implement", "review"} <= node_names
+        assert {"implement", "review", "document", "finalize"} <= node_names
 
-    def test_edges_form_linear_pipeline(self, engine: CursorCLI) -> None:
+    def test_graph_has_no_plan_node(self, engine: CursorCLI) -> None:
+        graph = build_graph(engine)
+        node_names = set(graph.get_graph().nodes.keys())
+        assert "plan" not in node_names
+
+    def test_graph_edges_start_at_implement(self, engine: CursorCLI) -> None:
         graph = build_graph(engine)
         edges = {(e.source, e.target) for e in graph.get_graph().edges}
-        assert ("__start__", "plan") in edges
-        assert ("plan", "implement") in edges
+        assert ("__start__", "implement") in edges
+
+    def test_graph_edges_implement_to_review(self, engine: CursorCLI) -> None:
+        graph = build_graph(engine)
+        edges = {(e.source, e.target) for e in graph.get_graph().edges}
         assert ("implement", "review") in edges
-        assert ("review", "__end__") in edges
+
+    def test_graph_edges_review_has_conditional_targets(self, engine: CursorCLI) -> None:
+        graph = build_graph(engine)
+        edges = {(e.source, e.target) for e in graph.get_graph().edges}
+        assert ("review", "implement") in edges
+        assert ("review", "document") in edges
+
+    def test_graph_edges_document_to_finalize_to_end(self, engine: CursorCLI) -> None:
+        graph = build_graph(engine)
+        edges = {(e.source, e.target) for e in graph.get_graph().edges}
+        assert ("document", "finalize") in edges
+        assert ("finalize", "__end__") in edges

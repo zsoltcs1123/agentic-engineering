@@ -38,8 +38,9 @@ async def _setup_workflow(
     initial_state = WorkflowState(
         task=args.task,
         workdir=str(workdir),
-        plan="",
-        review="",
+        review_passed=False,
+        review_cycles=0,
+        max_review_cycles=args.max_review_cycles,
         trace=[],
     )
     thread_id = uuid.uuid4().hex[:8]
@@ -98,6 +99,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     run_parser.add_argument("task", help="Task description")
     run_parser.add_argument("--workdir", default=".", help="Working directory (default: .)")
     run_parser.add_argument("--model", default=None, help="Cursor CLI model override")
+    run_parser.add_argument(
+        "--max-review-cycles",
+        type=int,
+        default=3,
+        help="Max review→implement loops before forcing progression (default: 3)",
+    )
 
     return parser.parse_args(argv)
 

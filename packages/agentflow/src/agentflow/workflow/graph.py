@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any
+import re
+from typing import Any, Literal
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
@@ -10,6 +11,19 @@ from agentflow.engine import CursorCLI, EngineResult
 from agentflow.engine.types import PermissionMode
 from agentflow.workflow.display import print_engine_input, print_engine_output
 from agentflow.workflow.state import TraceEntry, WorkflowState
+
+_PASS_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(r"\bpass\b", re.IGNORECASE),
+    re.compile(r"\blgtm\b", re.IGNORECASE),
+    re.compile(r"\bno issues\b", re.IGNORECASE),
+    re.compile(r"\bapproved\b", re.IGNORECASE),
+    re.compile(r"\bno problems\b", re.IGNORECASE),
+    re.compile(r"\blooks good\b", re.IGNORECASE),
+]
+
+
+def _review_passed(output: str) -> bool:
+    return any(p.search(output) for p in _PASS_PATTERNS)
 
 
 def _make_trace_entry(step: str, prompt: str, result: EngineResult) -> TraceEntry:
@@ -36,20 +50,21 @@ async def _run_step(
     return result, [_make_trace_entry(step_name, prompt, result)]
 
 
+def _review_router(state: WorkflowState) -> Literal["implement", "document"]:
+    if state["review_passed"]:
+        return "document"
+    if state["review_cycles"] >= state["max_review_cycles"]:
+        return "document"
+    return "implement"
+
+
 def build_graph(
     engine: CursorCLI,
     *,
     checkpointer: BaseCheckpointSaver[Any] | None = None,
 ) -> CompiledStateGraph[Any, Any, Any, Any]:
-    async def plan(state: WorkflowState) -> dict[str, Any]:
-        prompt = f"Create a plan for this task:\n\n{state['task']}"
-        result, trace = await _run_step(
-            engine, state, step_name="plan", prompt=prompt, mode="default"
-        )
-        return {"plan": result.output, "trace": trace}
-
     async def implement(state: WorkflowState) -> dict[str, Any]:
-        prompt = f"Implement the following plan:\n\n{state['plan']}"
+        prompt = f"Implement the following plan:\n\n{state['task']}"
         _, trace = await _run_step(
             engine, state, step_name="implement", prompt=prompt, mode="acceptEdits"
         )
@@ -63,20 +78,43 @@ def build_graph(
         result, trace = await _run_step(
             engine, state, step_name="review", prompt=prompt, mode="default"
         )
-        return {"review": result.output, "trace": trace}
+        passed = _review_passed(result.output)
+        cycles = state["review_cycles"] + 1
+        return {"review_passed": passed, "review_cycles": cycles, "trace": trace}
+
+    async def document(state: WorkflowState) -> dict[str, Any]:
+        prompt = (
+            f"Update project documentation in {state['workdir']} to reflect the changes just made."
+        )
+        _, trace = await _run_step(
+            engine, state, step_name="document", prompt=prompt, mode="acceptEdits"
+        )
+        return {"trace": trace}
+
+    async def finalize(state: WorkflowState) -> dict[str, Any]:
+        prompt = (
+            f"Commit all changes in {state['workdir']}."
+            " Optionally push the branch and open a pull request."
+        )
+        _, trace = await _run_step(
+            engine, state, step_name="finalize", prompt=prompt, mode="acceptEdits"
+        )
+        return {"trace": trace}
 
     graph = StateGraph(WorkflowState)
 
-    graph.add_node("plan", plan)
     graph.add_node("implement", implement)
     graph.add_node("review", review)
+    graph.add_node("document", document)
+    graph.add_node("finalize", finalize)
 
-    graph.add_edge(START, "plan")
-    graph.add_edge("plan", "implement")
+    graph.add_edge(START, "implement")
     graph.add_edge("implement", "review")
-    graph.add_edge("review", END)
+    graph.add_conditional_edges("review", _review_router)
+    graph.add_edge("document", "finalize")
+    graph.add_edge("finalize", END)
 
     return graph.compile(
         checkpointer=checkpointer,
-        interrupt_after=["plan", "implement", "review"],
+        interrupt_after=["implement", "review", "document", "finalize"],
     )
