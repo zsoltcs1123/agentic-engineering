@@ -1,14 +1,31 @@
-# Agentic Dev System — Execution Layer
+# Agentic Dev System
 
-Portable, composable execution skills for AI-assisted development. Works with Cursor, Claude Code, Codex, or any agent that reads markdown.
+Portable, composable skills for AI-assisted development. Works with Cursor, Claude Code, Codex, or any agent that reads markdown.
 
 ## Principles
 
 1. **Portable** — no vendor lock-in; any markdown-reading agent works
-2. **Composable** — every skill works standalone or as part of `dev-cycle`
-3. **Lean context** — brief pointers; details live in rules
+2. **Composable** — every skill works standalone or as part of a pipeline
+3. **Lean context** — brief pointers; details live in rules and references
 
 ## Skills
+
+### Specification Layer
+
+Successive refinement from broad intent to executable plans. See [WORKFLOW.md](WORKFLOW.md) for the full pipeline.
+
+| Skill              | Level     | Purpose                                              |
+| ------------------ | --------- | ---------------------------------------------------- |
+| `spec-project`     | Blueprint | Create vision, architecture, roadmap, evaluation     |
+| `spec-milestone`   | Milestone | Decompose work into tasks + validation checkpoints   |
+| `spec-tasks`       | Milestone | Decompose work into tasks (without validations)      |
+| `spec-validations` | Milestone | Derive validation checkpoints from a task list       |
+| `spec-task`        | Task      | Detail a single task with steps and requirements     |
+| `plan-exec`        | Plan      | Codebase-aware implementation planning               |
+
+### Execution Layer
+
+Drives spec artifacts to shipped code. See [WORKFLOW.md](WORKFLOW.md) for the full pipeline.
 
 | Skill         | Purpose                                          |
 | ------------- | ------------------------------------------------ |
@@ -17,15 +34,20 @@ Portable, composable execution skills for AI-assisted development. Works with Cu
 | `code-review` | Review changes for quality issues                 |
 | `document`    | Update project documentation                      |
 | `finalize`    | Commit, optionally push + open PR                 |
-| `ci-debug`    | Diagnose failed CI runs                           |
 
-## Pipeline
+### Standalone
+
+| Skill      | Purpose                 |
+| ---------- | ----------------------- |
+| `ci-debug` | Diagnose failed CI runs |
+
+## Execution Pipeline
 
 ```
 Implement → Review → [loop if issues] → Document → Finalize
 ```
 
-`dev-cycle` drives this sequence from an existing implementation plan (Cursor plan-mode output or a file).
+`dev-cycle` drives this sequence from an existing implementation plan.
 
 ## Rules
 

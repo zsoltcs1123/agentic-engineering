@@ -5,6 +5,12 @@
     "code-review": ["get-docs"],
     "document": [],
     "finalize": ["commit"],
-    "ci-debug": []
+    "ci-debug": [],
+    "spec-project": [],
+    "spec-milestone": [],
+    "spec-tasks": [],
+    "spec-validations": [],
+    "spec-task": [],
+    "plan-exec": []
   }
 }

@@ -17,12 +17,12 @@ Inspired by Nate's [four-discipline model](https://natesnewsletter.substack.com/
 
 Successive refinement from broad intent to agent-executable steps. Each level adds the detail the next consumer needs. Four control points prevent spec-to-execution information loss; each level is independently tunable.
 
-| Level     | Artifact                                                        | Skill                                              |
-| --------- | --------------------------------------------------------------- | -------------------------------------------------- |
-| Blueprint | Full product spec or roadmap                                    | `project-planner`                                  |
-| Milestone | One phase/module — task list + validation suite                 | `plan-tasks`, `plan-validations`, `plan-dev-tasks` |
-| Task      | Single task — description, requirements, verification scenarios | (planned)                                          |
-| Plan      | Structured executable plan — codebase-aware, file-level steps   | (planned)                                          |
+| Level     | Artifact                                                        | Skill                                                       |
+| --------- | --------------------------------------------------------------- | ----------------------------------------------------------- |
+| Blueprint | Full product spec or roadmap                                    | `spec-project`                                              |
+| Milestone | One phase/module — task list + validation suite                 | `spec-milestone`, `spec-tasks`, `spec-validations`          |
+| Task      | Single task — description, requirements, verification scenarios | `spec-task`                                                 |
+| Plan      | Structured executable plan — codebase-aware, file-level steps   | `plan-exec`                                                 |
 
 Pipeline: Blueprint &rarr; Milestone &rarr; Task &rarr; Plan.
 
